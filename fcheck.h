@@ -345,7 +345,7 @@ namespace fcheck
 	}
 	VarId CSP::AddIntVar(const char* name_id, int min_val, int max_val)
 	{
-		Domain new_dom = { DomainType::Ranges, {min_val, max_val+1} };
+		Domain new_dom = { DomainType::Ranges, {min_val, max_val} };
 		return AddIntVar(name_id, new_dom);
 	}
 	VarId CSP::AddBoolVar(const char* name_id)
