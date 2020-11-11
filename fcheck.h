@@ -59,32 +59,6 @@ namespace fcheck
 	{
 		Domain() = default;
 
-		//bool ForRange(const CSP& csp, Assignment& a, const Var2& var, bool (*Func)(const CSP& csp, Assignment& a, const Var2& var, int val)) const
-		//{
-		//	bool found_result = false;
-		//	if (type == DomainType::Values)
-		//	{
-		//		for (int d_idx = 0; d_idx < values.size() && !found_result; d_idx++)
-		//		{
-		//			int val = values[d_idx];
-		//			found_result = Func(csp, a, var, val);
-		//		}
-		//	}
-		//	else
-		//	{
-		//		for (int r_idx = 0; r_idx < values.size(); r_idx +=2)
-		//		{
-		//			int min = values[r_idx];
-		//			int max = values[r_idx+1];
-		//			for (int val = min; val < max && !found_result; val++)
-		//			{
-		//				found_result = Func(csp, a, var, val);
-		//			}
-		//		}
-		//	}
-		//	return found_result;
-		//}
-
 		DomainType type = DomainType::Values;
 		Array<int> values;
 	};
@@ -114,47 +88,6 @@ namespace fcheck
 
 		int value = InstVar::UNASSIGNED;
 	};
-
-	struct Var
-	{
-		Var() = default;
-
-		static const VarId INVALID = -1;
-
-		VarId var_id = Var::INVALID;
-		const char* name = nullptr;
-		Array<int> linked_constraints;
-		Domain domain;
-	};
-
-	struct Constraint
-	{
-		Constraint() = default;
-
-		bool IsEnforceIf() const { return vid_if != Var::INVALID; }
-		/** Returns true if respected, false otherwise - passed values must be properly instanciated */
-		bool Evaluate(int vid1_val, int vid2_val) const;
-
-		enum class Op : int
-		{
-			Equal = 0,	// ==
-			NotEqual,	// !=
-			SupEqual,	// >=
-			Sup,		// >
-			InfEqual,	// <=
-			Inf		// <
-		};
-
-		VarId vid1 = Var::INVALID;
-		Op op = Op::Equal;
-		VarId vid2 = Var::INVALID;
-		int const_mul2 = 1;
-		int const_add2 = 0;
-		VarId vid_if = Var::INVALID;
-		int ifnot = 0;
-	};
-
-	////////////////////////////////////////////////////////////////////////////
 
 	struct Constraint2
 	{
@@ -240,7 +173,7 @@ namespace fcheck
 
 		static const VarId INVALID = -1;
 
-		VarId var_id = Var::INVALID;
+		VarId var_id = Var2::INVALID;
 		Array<Constraint2*> linked_constraints;
 	};
 
@@ -248,7 +181,6 @@ namespace fcheck
 	{
 	public:
 		Assignment();
-		void Reset(const Array<Var>& vars);
 		void Reset2(const Array<Domain>& domains);
 		bool IsComplete();
 		int GetInstVarValue(VarId vid) const;
@@ -256,9 +188,7 @@ namespace fcheck
 		VarId NextUnassignedVar();
 		void AssignVar(VarId vid, int val);
 		void UnAssignVar(VarId vid);
-		bool ValidateConstraints(const Array<Constraint>& all_constraints, const Var& var, int val) /*const*/;
 		bool ValidateConstraints2(const Array<Constraint2*>& constraints) /*const*/;
-		bool AplyArcConsistency(const Constraint& con);//, const Var& var);
 		const SavedDomain& FindOrAddSavedDomain(VarId vid, const Domain& dom);
 		void RestoreSavedDomainStep();
 
@@ -279,35 +209,18 @@ namespace fcheck
 		CSP() = default;
 		~CSP();
 
-		VarId AddIntVar(const char* name_id, const Domain& domain);
-		VarId AddIntVar(const char* name_id, int min_val, int max_val);
-		VarId AddBoolVar(const char* name_id);
 		VarId AddIntVar2(const char* name_id, const Domain& domain);
 		VarId AddIntVar2(const char* name_id, int min_val, int max_val);
 		VarId AddBoolVar2(const char* name_id);
-		void AddConstraint(VarId vid1, Constraint::Op op, VarId vid2, int const_mul2 = 1, int const_add2 = 0);
-		void AddConstraintIf(VarId vid1, Constraint::Op op, VarId vid2, int const_mul2, int const_add2, VarId vid_if);
-		void AddConstraintIfNot(VarId vid1, Constraint::Op op, VarId vid2, int const_mul2, int const_add2, VarId vid_ifnot);
-		void AddConstraint(VarId vid1, Constraint::Op op, int const_val);
-		void AddConstraintIf(VarId vid1, Constraint::Op op, int const_val, VarId vid_if);
-		void AddConstraintIfNot(VarId vid1, Constraint::Op op, int const_val, VarId vid_ifnot);
-		void PushConstraint(const Constraint& con);
 		template <class T>
 		void PushConstraint2(const T& con);
 
-		bool ForwardCheckingStep(Assignment& a) const;
 		bool ForwardCheckingStep2(Assignment& a) const;
-		const Var& GetVar(VarId vid) const;
-		const Domain& GetVarDomain(VarId vid) const;
 
 		// Static parameters, unaffected by searching algo
-		Array<Var> vars;
-		Array<Constraint> constraints;
 		Array<Var2> vars2;
 		Array<Constraint2*> constraints2;
 		Array<Domain> domains2;
-		Var null_var;
-		Domain null_domain;
 	};
 
 }; /*namespace fcheck*/
@@ -318,22 +231,6 @@ namespace fcheck
 {
 	Assignment::Assignment() {}
 
-	void Assignment::Reset(const Array<Var>& vars)
-	{
-		assigned_var_count = 0;
-		//unassigned_idx = 0;
-
-		inst_vars.clear();
-		inst_vars.resize(vars.size());
-
-		current_domains.resize(vars.size());
-		for (int i = 0; i < vars.size(); i++)
-		{
-			current_domains[i] = vars[i].domain;
-		}
-
-		saved_domains.clear();
-	}
 	void Assignment::Reset2(const Array<Domain>& domains)
 	{
 		assigned_var_count = 0;
@@ -397,195 +294,6 @@ namespace fcheck
 		}
 	}
 
-	bool Assignment::ValidateConstraints(const Array<Constraint>& all_constraints, const Var& var, int val) /*const*/
-	{
-		for (int c_idx = 0; c_idx < var.linked_constraints.size(); c_idx++)
-		{
-#ifdef FCHECK_WITH_STATS
-			stats.validated_constraints++;
-#endif
-			const Constraint& con = all_constraints[var.linked_constraints[c_idx]];
-			if (con.IsEnforceIf())
-			{
-				int vid_if_val = (var.var_id == con.vid_if ? val : inst_vars[con.vid_if].value);
-				if (vid_if_val == InstVar::UNASSIGNED)
-					continue;	// if val is unassigned, we can't enforce the constraint yet, ignore it
-
-				if (!!con.ifnot == !!vid_if_val)
-					continue;	// conditions are not met, we should not enforce if
-			}
-
-			int vid1_val = (var.var_id == con.vid1 ? val : inst_vars[con.vid1].value);
-			int vid2_val = (var.var_id == con.vid2 ? val : inst_vars[con.vid2].value);
-
-			// Can we evaluate the constraint yet ?
-			if (vid1_val != InstVar::UNASSIGNED &&
-				vid2_val != InstVar::UNASSIGNED)
-			{
-				// Is constraint respected ?
-				if (!con.Evaluate(vid1_val, vid2_val))
-				{
-					return false;
-				}
-			}
-		}
-
-		return true;
-	}
-
-	bool Constraint::Evaluate(int vid1_val, int vid2_val) const
-	{
-		// constraint enforcement should be checked beforce calling this function
-
-		switch (op)
-		{
-		case Op::Equal:
-			if (vid1_val == vid2_val * const_mul2 + const_add2)
-				return true;
-			break;
-		case Op::NotEqual:
-			if (vid1_val != vid2_val * const_mul2 + const_add2)
-				return true;
-			break;
-		case Op::SupEqual:
-			if (vid1_val >= vid2_val * const_mul2 + const_add2)
-				return true;
-			break;
-		case Op::Sup:
-			if (vid1_val > vid2_val * const_mul2 + const_add2)
-				return true;
-			break;
-		case Op::InfEqual:
-			if (vid1_val <= vid2_val * const_mul2 + const_add2)
-				return true;
-			break;
-		case Op::Inf:
-			if (vid1_val < vid2_val * const_mul2 + const_add2)
-				return true;
-			break;
-		};
-
-		return false;
-	}
-
-	bool Assignment::AplyArcConsistency(const Constraint& con)//, const Var& var)
-	{
-#ifdef FCHECK_WITH_STATS
-		stats.applied_arcs++;
-#endif
-		int vid1_val = inst_vars[con.vid1].value;
-		int vid2_val = inst_vars[con.vid2].value;
-
-		if (con.IsEnforceIf())
-		{
-			int vid_if_val = inst_vars[con.vid_if].value;
-			if (vid_if_val == InstVar::UNASSIGNED)
-			{
-				if (vid1_val != InstVar::UNASSIGNED && vid2_val != InstVar::UNASSIGNED)
-				{
-					// check for if condition that does not violate constraint
-					bool is_con_ok = con.Evaluate(vid1_val, vid2_val);
-					if (!is_con_ok)	// is constraint is ok, state of if-condition does not matter
-					{
-						Domain& dom = current_domains[con.vid_if];
-						const SavedDomain& sav_dom = FindOrAddSavedDomain(con.vid_if, dom);
-
-						for (int d_idx = 0; d_idx < dom.values.size(); )
-						{
-							int val = dom.values[d_idx];
-							if (!!con.ifnot == !!val)
-							{
-								// only choose values that do not enforce condition
-								d_idx++;
-							}
-							else
-							{
-								//dom.values.erase(dom.values.begin() + d_idx);
-								std::swap(dom.values[d_idx], dom.values.back());
-								dom.values.pop_back();
-							}
-						}
-						if (dom.values.empty())
-						{
-							// Domain wipe out
-							return false;
-						}
-					}
-				}
-				else
-				{
-					// otherwise the constraint is undertermined, just exit
-					return true;
-				}
-			}
-			else
-			{
-				if (!!con.ifnot == !!vid_if_val)
-				{
-					return true;	// conditions are not met, we should not enforce if
-				}
-			}
-		}
-		else
-		{
-			// there are only two vars, and one has just been assigned
-			if (vid1_val == InstVar::UNASSIGNED)
-			{
-				Domain& dom = current_domains[con.vid1];
-				const SavedDomain& sav_dom = FindOrAddSavedDomain(con.vid1, dom);
-
-				for (int d_idx = 0; d_idx < dom.values.size(); )
-				{
-					int val = dom.values[d_idx];
-					if (con.Evaluate(val, vid2_val))
-					{
-						// only choose values that do not enforce condition
-						d_idx++;
-					}
-					else
-					{
-						//dom.values.erase(dom.values.begin() + d_idx);
-						std::swap(dom.values[d_idx], dom.values.back());
-						dom.values.pop_back();
-					}
-				}
-				if (dom.values.empty())
-				{
-					// Domain wipe out
-					return false;
-				}
-			}
-			else if (vid2_val == InstVar::UNASSIGNED)
-			{
-				Domain& dom = current_domains[con.vid2];
-				const SavedDomain& sav_dom = FindOrAddSavedDomain(con.vid2, dom);
-
-				for (int d_idx = 0; d_idx < dom.values.size(); )
-				{
-					int val = dom.values[d_idx];
-					if (con.Evaluate(vid1_val, val))
-					{
-						// only choose values that do not enforce condition
-						d_idx++;
-					}
-					else
-					{
-						//dom.values.erase(dom.values.begin() + d_idx);
-						std::swap(dom.values[d_idx], dom.values.back());
-						dom.values.pop_back();
-					}
-				}
-				if (dom.values.empty())
-				{
-					// Domain wipe out
-					return false;
-				}
-			}
-		}
-
-		return true;
-	}
-
 	const SavedDomain& Assignment::FindOrAddSavedDomain(VarId vid, const Domain& dom)
 	{
 		SavedDomainStep& domain_step = saved_domains.back();
@@ -605,30 +313,6 @@ namespace fcheck
 			delete constraints2[c_idx];
 		}
 	}
-	VarId CSP::AddIntVar(const char* name_id, const Domain& domain)
-	{
-		Var new_var = { (VarId)vars.size(), name_id, {}, domain };
-		vars.push_back(new_var);
-
-		return new_var.var_id;
-	}
-	VarId CSP::AddIntVar(const char* name_id, int min_val, int max_val)
-	{
-		Domain domain;
-		domain.values.resize(max_val + 1 - min_val);
-		for (int i = min_val; i <= max_val; i++)
-		{
-			domain.values[i-min_val] = i;
-		}
-		return AddIntVar(name_id, domain);
-	}
-	VarId CSP::AddBoolVar(const char* name_id)
-	{
-		Var new_var = { (VarId)vars.size(), name_id, {}, {DomainType::Values, {0, 1}} };
-		vars.push_back(new_var);
-
-		return new_var.var_id;
-	}
 	VarId CSP::AddIntVar2(const char* name_id, const Domain& domain)
 	{
 		Var2 new_var = { (VarId)vars2.size(), {} };
@@ -639,13 +323,7 @@ namespace fcheck
 	}
 	VarId CSP::AddIntVar2(const char* name_id, int min_val, int max_val)
 	{
-		//Domain domain;
 		Domain new_dom = { DomainType::Ranges, {min_val, max_val+1} };
-		//domain.values.resize(max_val + 1 - min_val);
-		//for (int i = min_val; i <= max_val; i++)
-		//{
-		//	domain.values[i - min_val] = i;
-		//}
 		return AddIntVar2(name_id, new_dom);
 	}
 	VarId CSP::AddBoolVar2(const char* name_id)
@@ -657,52 +335,6 @@ namespace fcheck
 
 		return new_var.var_id;
 	}
-	void CSP::AddConstraint(VarId vid1, Constraint::Op op, VarId vid2, int const_mul2, int const_add2)
-	{
-		Constraint new_constraint = { vid1, op, vid2, const_mul2, const_add2, Var::INVALID, 0 };
-		PushConstraint(new_constraint);
-	}
-	void CSP::AddConstraintIf(VarId vid1, Constraint::Op op, VarId vid2, int const_mul2, int const_add2, VarId vid_if)
-	{
-		Constraint new_constraint = { vid1, op, vid2, const_mul2, const_add2, vid_if, 0 };
-		PushConstraint(new_constraint);
-	}
-	void CSP::AddConstraintIfNot(VarId vid1, Constraint::Op op, VarId vid2, int const_mul2, int const_add2, VarId vid_ifnot)
-	{
-		Constraint new_constraint = { vid1, op, vid2, const_mul2, const_add2, vid_ifnot, 1 };
-		PushConstraint(new_constraint);
-	}
-	void CSP::AddConstraint(VarId vid1, Constraint::Op op, int const_val)
-	{
-		Constraint new_constraint = { vid1, op, vid1, 0, const_val, Var::INVALID, 0 };
-		PushConstraint(new_constraint);
-	}
-	void CSP::AddConstraintIf(VarId vid1, Constraint::Op op, int const_val, VarId vid_if)
-	{
-		Constraint new_constraint = { vid1, op, vid1, 0, const_val, vid_if, 0 };
-		PushConstraint(new_constraint);
-	}
-	void CSP::AddConstraintIfNot(VarId vid1, Constraint::Op op, int const_val, VarId vid_ifnot)
-	{
-		Constraint new_constraint = { vid1, op, vid1, 0, const_val, vid_ifnot, 1 };
-		PushConstraint(new_constraint);
-	}
-	void CSP::PushConstraint(const Constraint& con)
-	{
-		int cid = (int)constraints.size();
-		constraints.push_back(con);
-
-		Var& var1 = vars[con.vid1];
-		var1.linked_constraints.push_back(cid);
-		Var& var2 = vars[con.vid2];
-		var2.linked_constraints.push_back(cid);
-
-		if (con.vid_if != Var::INVALID)
-		{
-			Var& var_if = vars[con.vid_if];
-			var_if.linked_constraints.push_back(cid);
-		}
-	}
 	template <class T>
 	void CSP::PushConstraint2(const T& con)
 	{
@@ -710,60 +342,6 @@ namespace fcheck
 		T* new_con = new T(con);
 		constraints2.push_back(new_con);
 		new_con->LinkVars(vars2);
-	}
-
-	const Var& CSP::GetVar(VarId vid) const
-	{
-		if (vid < 0 || vid >= vars.size())
-			return null_var;
-
-		return vars[vid];
-	}
-
-	bool CSP::ForwardCheckingStep(Assignment& a) const
-	{
-		if (a.IsComplete())
-			return true;
-
-		// add a new saved domain step
-		a.saved_domains.push_back(SavedDomainStep());
-
-		VarId vid = a.NextUnassignedVar();
-		const Domain& dom = a.GetCurrentDomain(vid);
-		const Var& var = GetVar(vid);
-
-		for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
-		{
-			int val = dom.values[d_idx];
-			if (a.ValidateConstraints(constraints, var, val))
-			{
-				a.AssignVar(vid, val);
-
-				bool success = true;
-				for (int c_idx = 0; success && c_idx < var.linked_constraints.size(); c_idx++)
-				{
-					const Constraint& con = constraints[var.linked_constraints[c_idx]];
-					success &= a.AplyArcConsistency(con);//, var);
-				}
-				if (success)
-				{
-					success = ForwardCheckingStep(a);
-				}
-				if (success)
-				{
-					return true;
-				}
-				else
-				{
-					a.UnAssignVar(vid);
-					// Restore saved domains
-					a.RestoreSavedDomainStep();
-				}
-			}
-		}
-
-		a.saved_domains.pop_back();
-		return false;
 	}
 
 	bool CSP::ForwardCheckingStep2(Assignment& a) const
