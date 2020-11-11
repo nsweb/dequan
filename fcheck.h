@@ -259,7 +259,7 @@ namespace fcheck
 		bool ValidateConstraints(const Array<Constraint>& all_constraints, const Var& var, int val) /*const*/;
 		bool ValidateConstraints2(const Array<Constraint2*>& constraints) /*const*/;
 		bool AplyArcConsistency(const Constraint& con);//, const Var& var);
-		SavedDomain& FindOrAddSavedDomain(VarId vid, const Domain& dom);
+		const SavedDomain& FindOrAddSavedDomain(VarId vid, const Domain& dom);
 		void RestoreSavedDomainStep();
 
 		int assigned_var_count = 0;
@@ -488,7 +488,7 @@ namespace fcheck
 					if (!is_con_ok)	// is constraint is ok, state of if-condition does not matter
 					{
 						Domain& dom = current_domains[con.vid_if];
-						SavedDomain& sav_dom = FindOrAddSavedDomain(con.vid_if, dom);
+						const SavedDomain& sav_dom = FindOrAddSavedDomain(con.vid_if, dom);
 
 						for (int d_idx = 0; d_idx < dom.values.size(); )
 						{
@@ -532,7 +532,7 @@ namespace fcheck
 			if (vid1_val == InstVar::UNASSIGNED)
 			{
 				Domain& dom = current_domains[con.vid1];
-				SavedDomain& sav_dom = FindOrAddSavedDomain(con.vid1, dom);
+				const SavedDomain& sav_dom = FindOrAddSavedDomain(con.vid1, dom);
 
 				for (int d_idx = 0; d_idx < dom.values.size(); )
 				{
@@ -558,7 +558,7 @@ namespace fcheck
 			else if (vid2_val == InstVar::UNASSIGNED)
 			{
 				Domain& dom = current_domains[con.vid2];
-				SavedDomain& sav_dom = FindOrAddSavedDomain(con.vid2, dom);
+				const SavedDomain& sav_dom = FindOrAddSavedDomain(con.vid2, dom);
 
 				for (int d_idx = 0; d_idx < dom.values.size(); )
 				{
@@ -586,7 +586,7 @@ namespace fcheck
 		return true;
 	}
 
-	SavedDomain& Assignment::FindOrAddSavedDomain(VarId vid, const Domain& dom)
+	const SavedDomain& Assignment::FindOrAddSavedDomain(VarId vid, const Domain& dom)
 	{
 		SavedDomainStep& domain_step = saved_domains.back();
 		for (int d_idx = 0; d_idx < domain_step.domains.size(); d_idx++)
@@ -910,59 +910,81 @@ namespace fcheck
 		auto DoCheck = [&a](VarId v0, int v0_val, int oth_val, Op op)->bool
 		{
 			Domain& dom = a.current_domains[v0];
-			SavedDomain& sav_dom = a.FindOrAddSavedDomain(v0, dom);
+			/*const SavedDomain& sav_dom =*/ a.FindOrAddSavedDomain(v0, dom);
 
-			dom.values.clear();
 			if (dom.type == DomainType::Values)
 			{
 				if (op == Op::Equal)
 				{
-					for (int d_idx = 0; d_idx < sav_dom.values.size(); d_idx++)
+					for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
 					{
-						if (oth_val == sav_dom.values[d_idx])
+						if (oth_val == dom.values[d_idx])
 						{
+							dom.values.clear();
 							dom.values.push_back(oth_val);
+							return true;
 						}
 					}
 				}
-				else
+				else // Op::NotEqual
 				{
-					for (int d_idx = 0; d_idx < sav_dom.values.size(); d_idx++)
+					for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
 					{
-						if (oth_val != sav_dom.values[d_idx])
+						if (oth_val == dom.values[d_idx])
 						{
-							dom.values.push_back(oth_val);
+							dom.values.erase(dom.values.begin() + d_idx);
+							break;
 						}
 					}
 				}
 			}
 			else
 			{
-				dom.type = DomainType::Values;
 				if (op == Op::Equal)
 				{
-					for (int r_idx = 0; r_idx < sav_dom.values.size(); r_idx += 2)
+					for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
 					{
-						int min = sav_dom.values[r_idx];
-						int max = sav_dom.values[r_idx + 1];
+						int min = dom.values[r_idx];
+						int max = dom.values[r_idx + 1];
 						if (min <= oth_val && oth_val < max)
 						{
+							dom.type = DomainType::Values;
+							dom.values.clear();
 							dom.values.push_back(oth_val);
+							return true;
 						}
 					}
 				}
 				else
 				{
-					for (int r_idx = 0; r_idx < sav_dom.values.size(); r_idx += 2)
+					for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
 					{
-						int min = sav_dom.values[r_idx];
-						int max = sav_dom.values[r_idx + 1];
-						for (int val = min; val < max; val++)
+						int min = dom.values[r_idx];
+						int max = dom.values[r_idx + 1];
+						if (min <= oth_val && oth_val < max)
 						{
-							if (oth_val != val)
+							if (max - min <= 1)
 							{
-								dom.values.push_back(val);
+								dom.values.erase(dom.values.begin() + r_idx, dom.values.begin() + r_idx + 2);
 							}
+							else
+							{
+								if (oth_val == min)
+								{
+									dom.values[r_idx] = oth_val + 1;
+								}
+								else if (oth_val + 1 == max)
+								{
+									dom.values[r_idx + 1] = oth_val;
+								}
+								else
+								{
+									dom.values[r_idx + 1] = oth_val;
+									dom.values.insert(dom.values.begin() + (r_idx + 2), max);
+									dom.values.insert(dom.values.begin() + (r_idx + 2), oth_val + 1);
+								}
+							}
+							break;
 						}
 					}
 				}
@@ -1013,42 +1035,41 @@ namespace fcheck
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
 #endif
-		auto DoCheck = [&a](VarId v0, int v0_val, int v1_val)->bool
+		auto DoCheck = [&a](VarId v0, int v0_val, int oth_val)->bool
 		{
 			Domain& dom = a.current_domains[v0];
-			SavedDomain& sav_dom = a.FindOrAddSavedDomain(v0, dom);
+			/*const SavedDomain& sav_dom =*/ a.FindOrAddSavedDomain(v0, dom);
 
-			dom.values.clear();
 			if (dom.type == DomainType::Values)
 			{
-				for (int d_idx = 0; d_idx < sav_dom.values.size(); d_idx++)
+				for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
 				{
-					int val = sav_dom.values[d_idx];
-					if (v1_val == val)
+					if (oth_val == dom.values[d_idx])
 					{
-						dom.values.push_back(v1_val);
+						dom.values.clear();
+						dom.values.push_back(oth_val);
+						return true;
 					}
 				}
 			}
 			else
 			{
-				dom.type = DomainType::Values;
-				for (int r_idx = 0; r_idx < sav_dom.values.size(); r_idx += 2)
+				for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
 				{
-					int min = sav_dom.values[r_idx];
-					int max = sav_dom.values[r_idx + 1];
-					if (min <= v1_val && v1_val < max)
+					int min = dom.values[r_idx];
+					int max = dom.values[r_idx + 1];
+					if (min <= oth_val && oth_val < max)
 					{
-						dom.values.push_back(v1_val);
+						dom.type = DomainType::Values;
+						dom.values.clear();
+						dom.values.push_back(oth_val);
+						return true;
 					}
 				}
 			}
-			if (dom.values.empty())
-			{
-				// Domain wipe out
-				return false;
-			}
-			return true;
+
+			// Domain wipe out
+			return false;
 		};
 
 		// there are only two vars, and one has just been assigned
@@ -1100,40 +1121,43 @@ namespace fcheck
 		if (v0_val == InstVar::UNASSIGNED && v1_val != InstVar::UNASSIGNED && v2_val != InstVar::UNASSIGNED)
 		{
 			Domain& dom = a.current_domains[v0];
-			SavedDomain& sav_dom = a.FindOrAddSavedDomain(v0, dom);
+			/*const SavedDomain& sav_dom =*/ a.FindOrAddSavedDomain(v0, dom);
 
-			dom.values.clear();
 			if (dom.type == DomainType::Values)
 			{
-				for (int d_idx = 0; d_idx < sav_dom.values.size(); d_idx++)
+				int write_idx = 0;
+				for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
 				{
-					int val = sav_dom.values[d_idx];
+					int val = dom.values[d_idx];
 					if (v1_val == val)
 					{
-						dom.values.push_back(v1_val);
+						dom.values[write_idx++] = v1_val;
 					}
 					else if (v2_val == val)
 					{
-						dom.values.push_back(v2_val);
+						dom.values[write_idx++] = v2_val;
 					}
 				}
+				dom.values.erase(dom.values.begin() + write_idx, dom.values.end());
 			}
 			else
 			{
 				dom.type = DomainType::Values;
-				for (int r_idx = 0; r_idx < sav_dom.values.size(); r_idx += 2)
+				int write_idx = 0;
+				for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
 				{
-					int min = sav_dom.values[r_idx];
-					int max = sav_dom.values[r_idx + 1];
+					int min = dom.values[r_idx];
+					int max = dom.values[r_idx + 1];
 					if (min <= v1_val && v1_val < max)
 					{
-						dom.values.push_back(v1_val);
+						dom.values[write_idx++] = v1_val;
 					}
 					if (min <= v2_val && v2_val < max)
 					{
-						dom.values.push_back(v2_val);
+						dom.values[write_idx++] = v2_val;
 					}
 				}
+				dom.values.erase(dom.values.begin() + write_idx, dom.values.end());
 			}
 
 			if (dom.values.empty())
@@ -1182,41 +1206,38 @@ namespace fcheck
 			int comb_val = v1_val + v2_val - v3_val;
 
 			Domain& dom = a.current_domains[v0];
-			SavedDomain& sav_dom = a.FindOrAddSavedDomain(v0, dom);
+			/*const SavedDomain& sav_dom =*/ a.FindOrAddSavedDomain(v0, dom);
 
-			dom.values.clear();
 			if (dom.type == DomainType::Values)
 			{
-				for (int d_idx = 0; d_idx < sav_dom.values.size(); d_idx++)
+				for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
 				{
-					int val = sav_dom.values[d_idx];
-					if (comb_val == val)
+					if (comb_val == dom.values[d_idx])
 					{
+						dom.values.clear();
 						dom.values.push_back(comb_val);
-						break;
+						return true;
 					}
 				}
 			}
 			else
 			{
-				dom.type = DomainType::Values;
-				for (int r_idx = 0; r_idx < sav_dom.values.size(); r_idx += 2)
+				for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
 				{
-					int min = sav_dom.values[r_idx];
-					int max = sav_dom.values[r_idx + 1];
+					int min = dom.values[r_idx];
+					int max = dom.values[r_idx + 1];
 					if (min <= comb_val && comb_val < max)
 					{
+						dom.type = DomainType::Values;
+						dom.values.clear();
 						dom.values.push_back(comb_val);
-						break;
+						return true;
 					}
 				}
 			}
 
-			if (dom.values.empty())
-			{
-				// Domain wipe out
-				return false;
-			}
+			// Domain wipe out
+			return false;
 		}
 
 		return true;
@@ -1249,7 +1270,7 @@ namespace fcheck
 		auto DoCheck = [&a, &min=min, &max=max](VarId v0)->bool
 		{
 			Domain& dom = a.current_domains[v0];
-			SavedDomain& sav_dom = a.FindOrAddSavedDomain(v0, dom);
+			const SavedDomain& sav_dom = a.FindOrAddSavedDomain(v0, dom);
 
 			dom.values.clear();
 			if (dom.type == DomainType::Values)
