@@ -36,7 +36,7 @@ namespace fcheck
 #endif
 
 	using VarId = int;
-	struct Var2;
+	struct Var;
 	class Assignment;
 	class CSP;
 
@@ -89,7 +89,7 @@ namespace fcheck
 		int value = InstVar::UNASSIGNED;
 	};
 
-	struct Constraint2
+	struct Constraint
 	{
 		enum class Eval : int
 		{
@@ -97,13 +97,13 @@ namespace fcheck
 			Passed,
 			Failed
 		};
-		Constraint2() = default;
-		virtual void LinkVars(Array<Var2>& vars2) = 0;
+		Constraint() = default;
+		virtual void LinkVars(Array<Var>& vars) = 0;
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars) = 0;
 		virtual bool Evaluate(const Array<InstVar>& inst_vars) = 0;
 		virtual bool AplyArcConsistency(Assignment& a) { return true; }
 	};
-	struct OpConstraint2 : public Constraint2
+	struct OpConstraint : public Constraint
 	{
 		enum class Op : int
 		{
@@ -115,8 +115,8 @@ namespace fcheck
 			//Inf		// <
 		};
 
-		OpConstraint2(VarId _v0, VarId _v1, Op _op,int _offset) : v0(_v0), v1(_v1), op(_op), offset(_offset) {};
-		virtual void LinkVars(Array<Var2>& vars2);
+		OpConstraint(VarId _v0, VarId _v1, Op _op,int _offset) : v0(_v0), v1(_v1), op(_op), offset(_offset) {};
+		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
 		virtual bool Evaluate(const Array<InstVar>& inst_vars);
 		virtual bool AplyArcConsistency(Assignment& a);
@@ -125,40 +125,40 @@ namespace fcheck
 		Op op = Op::Equal;
 		int offset = 0;
 	};
-	struct EqualityConstraint2 : public Constraint2
+	struct EqualityConstraint : public Constraint
 	{
-		EqualityConstraint2(VarId _v0, VarId _v1) : v0(_v0), v1(_v1) {};
-		virtual void LinkVars(Array<Var2>& vars2);
+		EqualityConstraint(VarId _v0, VarId _v1) : v0(_v0), v1(_v1) {};
+		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
 		virtual bool Evaluate(const Array<InstVar>& inst_vars);
 		virtual bool AplyArcConsistency(Assignment& a);
 
 		VarId v0, v1;
 	};
-	struct OrEqualityConstraint2 : public Constraint2
+	struct OrEqualityConstraint : public Constraint
 	{
-		OrEqualityConstraint2(VarId _v0, VarId _v1, VarId _v2) : v0(_v0), v1(_v1), v2(_v2) {};
-		virtual void LinkVars(Array<Var2>& vars2);
+		OrEqualityConstraint(VarId _v0, VarId _v1, VarId _v2) : v0(_v0), v1(_v1), v2(_v2) {};
+		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
 		virtual bool Evaluate(const Array<InstVar>& inst_vars);
 		virtual bool AplyArcConsistency(Assignment& a);
 
 		VarId v0, v1, v2;
 	};
-	struct CombinedEqualityConstraint2 : public Constraint2
+	struct CombinedEqualityConstraint : public Constraint
 	{
-		CombinedEqualityConstraint2(VarId _v0, VarId _v1, VarId _v2, VarId _v3) : v0(_v0), v1(_v1), v2(_v2), v3(_v3) {};
-		virtual void LinkVars(Array<Var2>& vars2);
+		CombinedEqualityConstraint(VarId _v0, VarId _v1, VarId _v2, VarId _v3) : v0(_v0), v1(_v1), v2(_v2), v3(_v3) {};
+		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
 		virtual bool Evaluate(const Array<InstVar>& inst_vars);
 		virtual bool AplyArcConsistency(Assignment& a);
 
 		VarId v0, v1, v2, v3;
 	};
-	struct OrRangeConstraint2 : public Constraint2
+	struct OrRangeConstraint : public Constraint
 	{
-		OrRangeConstraint2(VarId _v0, VarId _v1, int _min, int _max) : v0(_v0), v1(_v1), min(_min), max(_max) {};
-		virtual void LinkVars(Array<Var2>& vars2);
+		OrRangeConstraint(VarId _v0, VarId _v1, int _min, int _max) : v0(_v0), v1(_v1), min(_min), max(_max) {};
+		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
 		virtual bool Evaluate(const Array<InstVar>& inst_vars);
 		virtual bool AplyArcConsistency(Assignment& a);
@@ -167,29 +167,29 @@ namespace fcheck
 		int min, max;
 	};
 
-	struct Var2
+	struct Var
 	{
-		Var2() = default;
+		Var() = default;
 
 		static const VarId INVALID = -1;
 
-		VarId var_id = Var2::INVALID;
-		Array<Constraint2*> linked_constraints;
+		VarId var_id = Var::INVALID;
+		Array<Constraint*> linked_constraints;
 	};
 
 	class Assignment
 	{
 	public:
 		Assignment();
-		void Reset2(const Array<Domain>& domains);
+		void Reset(const CSP& csp);
 		bool IsComplete();
 		int GetInstVarValue(VarId vid) const;
 		const Domain& GetCurrentDomain(VarId vid) const;
 		VarId NextUnassignedVar();
 		void AssignVar(VarId vid, int val);
 		void UnAssignVar(VarId vid);
-		bool ValidateConstraints2(const Array<Constraint2*>& constraints) /*const*/;
-		const SavedDomain& FindOrAddSavedDomain(VarId vid, const Domain& dom);
+		bool ValidateConstraints(const Array<Constraint*>& constraints) /*const*/;
+		const SavedDomain& EnsureSavedDomain(VarId vid, const Domain& dom);
 		void RestoreSavedDomainStep();
 
 		int assigned_var_count = 0;
@@ -209,18 +209,18 @@ namespace fcheck
 		CSP() = default;
 		~CSP();
 
-		VarId AddIntVar2(const char* name_id, const Domain& domain);
-		VarId AddIntVar2(const char* name_id, int min_val, int max_val);
-		VarId AddBoolVar2(const char* name_id);
+		VarId AddIntVar(const char* name_id, const Domain& domain);
+		VarId AddIntVar(const char* name_id, int min_val, int max_val);
+		VarId AddBoolVar(const char* name_id);
 		template <class T>
-		void PushConstraint2(const T& con);
+		void PushConstraint(const T& con);
 
-		bool ForwardCheckingStep2(Assignment& a) const;
+		bool ForwardCheckingStep(Assignment& a) const;
 
 		// Static parameters, unaffected by searching algo
-		Array<Var2> vars2;
-		Array<Constraint2*> constraints2;
-		Array<Domain> domains2;
+		Array<Var> vars;
+		Array<Constraint*> constraints;
+		Array<Domain> domains;
 	};
 
 }; /*namespace fcheck*/
@@ -231,15 +231,15 @@ namespace fcheck
 {
 	Assignment::Assignment() {}
 
-	void Assignment::Reset2(const Array<Domain>& domains)
+	void Assignment::Reset(const CSP& csp)
 	{
 		assigned_var_count = 0;
 		//unassigned_idx = 0;
 
 		inst_vars.clear();
-		inst_vars.resize(domains.size());
+		inst_vars.resize(csp.domains.size());
 
-		current_domains = domains;
+		current_domains = csp.domains;
 		saved_domains.clear();
 	}
 
@@ -294,7 +294,7 @@ namespace fcheck
 		}
 	}
 
-	const SavedDomain& Assignment::FindOrAddSavedDomain(VarId vid, const Domain& dom)
+	const SavedDomain& Assignment::EnsureSavedDomain(VarId vid, const Domain& dom)
 	{
 		SavedDomainStep& domain_step = saved_domains.back();
 		for (int d_idx = 0; d_idx < domain_step.domains.size(); d_idx++)
@@ -308,43 +308,43 @@ namespace fcheck
 
 	CSP::~CSP()
 	{
-		for (int c_idx = 0; c_idx < (int)constraints2.size(); c_idx++)
+		for (int c_idx = 0; c_idx < (int)constraints.size(); c_idx++)
 		{
-			delete constraints2[c_idx];
+			delete constraints[c_idx];
 		}
 	}
-	VarId CSP::AddIntVar2(const char* name_id, const Domain& domain)
+	VarId CSP::AddIntVar(const char* name_id, const Domain& domain)
 	{
-		Var2 new_var = { (VarId)vars2.size(), {} };
-		vars2.push_back(new_var);
-		domains2.push_back(domain);
+		Var new_var = { (VarId)vars.size(), {} };
+		vars.push_back(new_var);
+		domains.push_back(domain);
 
 		return new_var.var_id;
 	}
-	VarId CSP::AddIntVar2(const char* name_id, int min_val, int max_val)
+	VarId CSP::AddIntVar(const char* name_id, int min_val, int max_val)
 	{
 		Domain new_dom = { DomainType::Ranges, {min_val, max_val+1} };
-		return AddIntVar2(name_id, new_dom);
+		return AddIntVar(name_id, new_dom);
 	}
-	VarId CSP::AddBoolVar2(const char* name_id)
+	VarId CSP::AddBoolVar(const char* name_id)
 	{
-		Var2 new_var = { (VarId)vars2.size(), {} };
+		Var new_var = { (VarId)vars.size(), {} };
 		Domain new_dom = { DomainType::Values, {0, 1} };
-		vars2.push_back(new_var);
-		domains2.push_back(new_dom);
+		vars.push_back(new_var);
+		domains.push_back(new_dom);
 
 		return new_var.var_id;
 	}
 	template <class T>
-	void CSP::PushConstraint2(const T& con)
+	void CSP::PushConstraint(const T& con)
 	{
-		int cid = (int)constraints2.size();
+		int cid = (int)constraints.size();
 		T* new_con = new T(con);
-		constraints2.push_back(new_con);
-		new_con->LinkVars(vars2);
+		constraints.push_back(new_con);
+		new_con->LinkVars(vars);
 	}
 
-	bool CSP::ForwardCheckingStep2(Assignment& a) const
+	bool CSP::ForwardCheckingStep(Assignment& a) const
 	{
 		if (a.IsComplete())
 			return true;
@@ -354,12 +354,12 @@ namespace fcheck
 
 		VarId vid = a.NextUnassignedVar();
 		const Domain& dom = a.GetCurrentDomain(vid);
-		const Var2& var = vars2[vid];
+		const Var& var = vars[vid];
 
 		auto LambdaStep = [this, &a, &var](int val)->bool
 		{
 			a.AssignVar(var.var_id, val);
-			if (a.ValidateConstraints2(var.linked_constraints))
+			if (a.ValidateConstraints(var.linked_constraints))
 			{
 				bool success = true;
 				for (int c_idx = 0; success && c_idx < var.linked_constraints.size(); c_idx++)
@@ -368,7 +368,7 @@ namespace fcheck
 				}
 				if (success)
 				{
-					success = ForwardCheckingStep2(a);
+					success = ForwardCheckingStep(a);
 				}
 				if (success)
 				{
@@ -420,14 +420,14 @@ namespace fcheck
 	}
 
 	//////////////////////////////////////////////////////
-	bool Assignment::ValidateConstraints2(const Array<Constraint2*>& constraints) /*const*/
+	bool Assignment::ValidateConstraints(const Array<Constraint*>& constraints) /*const*/
 	{
 		for (int c_idx = 0; c_idx < constraints.size(); c_idx++)
 		{
 #ifdef FCHECK_WITH_STATS
 			stats.validated_constraints++;
 #endif
-			if (constraints[c_idx]->TryEvaluate(inst_vars) == Constraint2::Eval::Failed)
+			if (constraints[c_idx]->TryEvaluate(inst_vars) == Constraint::Eval::Failed)
 			{
 				return false;
 			}
@@ -435,20 +435,20 @@ namespace fcheck
 
 		return true;
 	}
-	void OpConstraint2::LinkVars(Array<Var2>& vars2)
+	void OpConstraint::LinkVars(Array<Var>& vars)
 	{
-		vars2[v0].linked_constraints.push_back(this);
-		vars2[v1].linked_constraints.push_back(this);
+		vars[v0].linked_constraints.push_back(this);
+		vars[v1].linked_constraints.push_back(this);
 	}
-	Constraint2::Eval OpConstraint2::TryEvaluate(const Array<InstVar>& inst_vars)
+	Constraint::Eval OpConstraint::TryEvaluate(const Array<InstVar>& inst_vars)
 	{
 		if (inst_vars[v0].value != InstVar::UNASSIGNED &&
 			inst_vars[v1].value != InstVar::UNASSIGNED)
-			return Evaluate(inst_vars) ? Constraint2::Eval::Passed : Constraint2::Eval::Failed;
+			return Evaluate(inst_vars) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
 
-		return Constraint2::Eval::NA;
+		return Constraint::Eval::NA;
 	}
-	bool OpConstraint2::Evaluate(const Array<InstVar>& inst_vars)
+	bool OpConstraint::Evaluate(const Array<InstVar>& inst_vars)
 	{
 		switch (op)
 		{
@@ -480,7 +480,7 @@ namespace fcheck
 
 		return false;
 	}
-	bool OpConstraint2::AplyArcConsistency(Assignment& a)
+	bool OpConstraint::AplyArcConsistency(Assignment& a)
 	{
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
@@ -488,7 +488,7 @@ namespace fcheck
 		auto DoCheck = [&a](VarId v0, int v0_val, int oth_val, Op op)->bool
 		{
 			Domain& dom = a.current_domains[v0];
-			/*const SavedDomain& sav_dom =*/ a.FindOrAddSavedDomain(v0, dom);
+			/*const SavedDomain& sav_dom =*/ a.EnsureSavedDomain(v0, dom);
 
 			if (dom.type == DomainType::Values)
 			{
@@ -591,24 +591,24 @@ namespace fcheck
 
 		return true;
 	}
-	void EqualityConstraint2::LinkVars(Array<Var2>& vars2)
+	void EqualityConstraint::LinkVars(Array<Var>& vars)
 	{
-		vars2[v0].linked_constraints.push_back(this);
-		vars2[v1].linked_constraints.push_back(this);
+		vars[v0].linked_constraints.push_back(this);
+		vars[v1].linked_constraints.push_back(this);
 	}
-	Constraint2::Eval EqualityConstraint2::TryEvaluate(const Array<InstVar>& inst_vars)
+	Constraint::Eval EqualityConstraint::TryEvaluate(const Array<InstVar>& inst_vars)
 	{
 		if (inst_vars[v0].value != InstVar::UNASSIGNED &&
 			inst_vars[v1].value != InstVar::UNASSIGNED)
-			return Evaluate(inst_vars) ? Constraint2::Eval::Passed : Constraint2::Eval::Failed;
+			return Evaluate(inst_vars) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
 
-		return Constraint2::Eval::NA;
+		return Constraint::Eval::NA;
 	}
-	bool EqualityConstraint2::Evaluate(const Array<InstVar>& inst_vars)
+	bool EqualityConstraint::Evaluate(const Array<InstVar>& inst_vars)
 	{
 		return inst_vars[v0].value == inst_vars[v1].value;
 	}
-	bool EqualityConstraint2::AplyArcConsistency(Assignment& a)
+	bool EqualityConstraint::AplyArcConsistency(Assignment& a)
 	{
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
@@ -616,7 +616,7 @@ namespace fcheck
 		auto DoCheck = [&a](VarId v0, int v0_val, int oth_val)->bool
 		{
 			Domain& dom = a.current_domains[v0];
-			/*const SavedDomain& sav_dom =*/ a.FindOrAddSavedDomain(v0, dom);
+			/*const SavedDomain& sav_dom =*/ a.EnsureSavedDomain(v0, dom);
 
 			if (dom.type == DomainType::Values)
 			{
@@ -666,27 +666,27 @@ namespace fcheck
 
 		return true;
 	}
-	void OrEqualityConstraint2::LinkVars(Array<Var2>& vars2)
+	void OrEqualityConstraint::LinkVars(Array<Var>& vars)
 	{
-		vars2[v0].linked_constraints.push_back(this);
-		vars2[v1].linked_constraints.push_back(this);
-		vars2[v2].linked_constraints.push_back(this);
+		vars[v0].linked_constraints.push_back(this);
+		vars[v1].linked_constraints.push_back(this);
+		vars[v2].linked_constraints.push_back(this);
 	}
-	Constraint2::Eval OrEqualityConstraint2::TryEvaluate(const Array<InstVar>& inst_vars)
+	Constraint::Eval OrEqualityConstraint::TryEvaluate(const Array<InstVar>& inst_vars)
 	{
 		if (inst_vars[v0].value != InstVar::UNASSIGNED &&
 			inst_vars[v1].value != InstVar::UNASSIGNED &&
 			inst_vars[v2].value != InstVar::UNASSIGNED)
-			return Evaluate(inst_vars) ? Constraint2::Eval::Passed : Constraint2::Eval::Failed;
+			return Evaluate(inst_vars) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
 
-		return Constraint2::Eval::NA;
+		return Constraint::Eval::NA;
 	}
-	bool OrEqualityConstraint2::Evaluate(const Array<InstVar>& inst_vars)
+	bool OrEqualityConstraint::Evaluate(const Array<InstVar>& inst_vars)
 	{
 		return	inst_vars[v0].value == inst_vars[v1].value ||
 				inst_vars[v0].value == inst_vars[v2].value;
 	}
-	bool OrEqualityConstraint2::AplyArcConsistency(Assignment& a)
+	bool OrEqualityConstraint::AplyArcConsistency(Assignment& a)
 	{
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
@@ -699,7 +699,7 @@ namespace fcheck
 		if (v0_val == InstVar::UNASSIGNED && v1_val != InstVar::UNASSIGNED && v2_val != InstVar::UNASSIGNED)
 		{
 			Domain& dom = a.current_domains[v0];
-			/*const SavedDomain& sav_dom =*/ a.FindOrAddSavedDomain(v0, dom);
+			/*const SavedDomain& sav_dom =*/ a.EnsureSavedDomain(v0, dom);
 
 			if (dom.type == DomainType::Values)
 			{
@@ -747,28 +747,28 @@ namespace fcheck
 
 		return true;
 	}
-	void CombinedEqualityConstraint2::LinkVars(Array<Var2>& vars2)
+	void CombinedEqualityConstraint::LinkVars(Array<Var>& vars)
 	{
-		vars2[v0].linked_constraints.push_back(this);
-		vars2[v1].linked_constraints.push_back(this);
-		vars2[v2].linked_constraints.push_back(this);
-		vars2[v3].linked_constraints.push_back(this);
+		vars[v0].linked_constraints.push_back(this);
+		vars[v1].linked_constraints.push_back(this);
+		vars[v2].linked_constraints.push_back(this);
+		vars[v3].linked_constraints.push_back(this);
 	}
-	Constraint2::Eval CombinedEqualityConstraint2::TryEvaluate(const Array<InstVar>& inst_vars)
+	Constraint::Eval CombinedEqualityConstraint::TryEvaluate(const Array<InstVar>& inst_vars)
 	{
 		if (inst_vars[v0].value != InstVar::UNASSIGNED &&
 			inst_vars[v1].value != InstVar::UNASSIGNED &&
 			inst_vars[v2].value != InstVar::UNASSIGNED &&
 			inst_vars[v3].value != InstVar::UNASSIGNED)
-			return Evaluate(inst_vars) ? Constraint2::Eval::Passed : Constraint2::Eval::Failed;
+			return Evaluate(inst_vars) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
 
-		return Constraint2::Eval::NA;
+		return Constraint::Eval::NA;
 	}
-	bool CombinedEqualityConstraint2::Evaluate(const Array<InstVar>& inst_vars)
+	bool CombinedEqualityConstraint::Evaluate(const Array<InstVar>& inst_vars)
 	{
 		return	inst_vars[v0].value == inst_vars[v1].value + inst_vars[v2].value - inst_vars[v3].value;
 	}
-	bool CombinedEqualityConstraint2::AplyArcConsistency(Assignment& a)
+	bool CombinedEqualityConstraint::AplyArcConsistency(Assignment& a)
 	{
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
@@ -784,7 +784,7 @@ namespace fcheck
 			int comb_val = v1_val + v2_val - v3_val;
 
 			Domain& dom = a.current_domains[v0];
-			/*const SavedDomain& sav_dom =*/ a.FindOrAddSavedDomain(v0, dom);
+			/*const SavedDomain& sav_dom =*/ a.EnsureSavedDomain(v0, dom);
 
 			if (dom.type == DomainType::Values)
 			{
@@ -820,25 +820,25 @@ namespace fcheck
 
 		return true;
 	}
-	void OrRangeConstraint2::LinkVars(Array<Var2>& vars2)
+	void OrRangeConstraint::LinkVars(Array<Var>& vars)
 	{
-		vars2[v0].linked_constraints.push_back(this);
-		vars2[v1].linked_constraints.push_back(this);
+		vars[v0].linked_constraints.push_back(this);
+		vars[v1].linked_constraints.push_back(this);
 	}
-	Constraint2::Eval OrRangeConstraint2::TryEvaluate(const Array<InstVar>& inst_vars)
+	Constraint::Eval OrRangeConstraint::TryEvaluate(const Array<InstVar>& inst_vars)
 	{
 		if (inst_vars[v0].value != InstVar::UNASSIGNED &&
 			inst_vars[v1].value != InstVar::UNASSIGNED)
-			return Evaluate(inst_vars) ? Constraint2::Eval::Passed : Constraint2::Eval::Failed;
+			return Evaluate(inst_vars) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
 
-		return Constraint2::Eval::NA;
+		return Constraint::Eval::NA;
 	}
-	bool OrRangeConstraint2::Evaluate(const Array<InstVar>& inst_vars)
+	bool OrRangeConstraint::Evaluate(const Array<InstVar>& inst_vars)
 	{
 		return	(inst_vars[v0].value >= min && inst_vars[v0].value < max) ||
 				(inst_vars[v1].value >= min && inst_vars[v1].value < max);
 	}
-	bool OrRangeConstraint2::AplyArcConsistency(Assignment& a)
+	bool OrRangeConstraint::AplyArcConsistency(Assignment& a)
 	{
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
@@ -848,7 +848,7 @@ namespace fcheck
 		auto DoCheck = [&a, &min=min, &max=max](VarId v0)->bool
 		{
 			Domain& dom = a.current_domains[v0];
-			const SavedDomain& sav_dom = a.FindOrAddSavedDomain(v0, dom);
+			const SavedDomain& sav_dom = a.EnsureSavedDomain(v0, dom);
 
 			dom.values.clear();
 			if (dom.type == DomainType::Values)

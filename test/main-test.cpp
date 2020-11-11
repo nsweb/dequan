@@ -20,9 +20,9 @@ std::string string_format(const char* format, Args ... args)
 }
 
 // https://en.wikipedia.org/wiki/Eight_queens_puzzle
-bool NQueensTest2(const int num_queen)
+bool NQueensTest(const int num_queen)
 {
-    std::cout << "----------------------------\n";
+    std::cout << "\n----------------------------\n";
     std::cout << num_queen << "-queens test2 : ";
 
     fcheck::CSP csp;
@@ -40,25 +40,25 @@ bool NQueensTest2(const int num_queen)
 
     for (int i = 0; i < num_queen; i++)
     {
-        qvars[i] = csp.AddIntVar2(var_names[i].c_str(), 0, num_queen);
+        qvars[i] = csp.AddIntVar(var_names[i].c_str(), 0, num_queen);
     }
 
     for (int i = 0; i < num_queen; i++)
     {
         for (int j = i + 1; j < num_queen; j++)
         {
-            csp.PushConstraint2(fcheck::OpConstraint2(qvars[i], qvars[j], fcheck::OpConstraint2::Op::NotEqual, 0));
-            csp.PushConstraint2(fcheck::OpConstraint2(qvars[i], qvars[j], fcheck::OpConstraint2::Op::NotEqual, j - i));
-            csp.PushConstraint2(fcheck::OpConstraint2(qvars[i], qvars[j], fcheck::OpConstraint2::Op::NotEqual, i - j));
+            csp.PushConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, 0));
+            csp.PushConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, j - i));
+            csp.PushConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, i - j));
         }
     }
 
     fcheck::Assignment a;
-    a.Reset2(csp.domains2);
+    a.Reset(csp);
 
     auto t1 = std::chrono::high_resolution_clock::now();
 
-    bool success = csp.ForwardCheckingStep2(a);
+    bool success = csp.ForwardCheckingStep(a);
 
     auto t2 = std::chrono::high_resolution_clock::now();
 
@@ -78,7 +78,13 @@ bool NQueensTest2(const int num_queen)
     }
 
     std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    std::cout << "\nForwardCheckingStep2 took " << time_span.count() << " seconds.\n";
+    std::cout << "\nForwardCheckingStep took " << time_span.count() << " seconds.\n";
+
+#ifdef FCHECK_WITH_STATS
+    std::cout << "\napplied_arcs: " << a.stats.applied_arcs;
+    std::cout << "\nassigned_vars: " << a.stats.assigned_vars;
+    std::cout << "\nvalidated_constraints: " << a.stats.validated_constraints;
+#endif
 
     return success;
 }
@@ -86,5 +92,5 @@ bool NQueensTest2(const int num_queen)
 
 int main()
 {
-    NQueensTest2(8);
+    NQueensTest(8);
 }
