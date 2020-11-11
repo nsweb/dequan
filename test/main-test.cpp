@@ -52,6 +52,7 @@ bool NQueensTest(const int num_queen)
             csp.PushConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, i - j));
         }
     }
+    csp.LinkConstraints();
 
     fcheck::Assignment a;
     a.Reset(csp);

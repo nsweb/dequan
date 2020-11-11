@@ -58,6 +58,10 @@ namespace fcheck
 	struct Domain
 	{
 		Domain() = default;
+		void Intersect(int val);
+		void Intersect(int val0, int val1);
+		void IntersectRange(int min, int max);
+		void Exclude(int val);
 
 		DomainType type = DomainType::Values;
 		Array<int> values;
@@ -82,9 +86,9 @@ namespace fcheck
 
 	struct InstVar
 	{
-		InstVar() = default;
-
 		static const int UNASSIGNED = -INT_MAX;
+
+		InstVar() = default;
 
 		int value = InstVar::UNASSIGNED;
 	};
@@ -97,12 +101,23 @@ namespace fcheck
 			Passed,
 			Failed
 		};
+		static const int MAX_CONSTRAINT_SIZE = 24;
+
 		Constraint() = default;
 		virtual void LinkVars(Array<Var>& vars) = 0;
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars) = 0;
 		virtual bool Evaluate(const Array<InstVar>& inst_vars) = 0;
 		virtual bool AplyArcConsistency(Assignment& a) { return true; }
 	};
+
+	struct GenericConstraint
+	{
+		char buffer[Constraint::MAX_CONSTRAINT_SIZE];
+
+		Constraint* operator->()	{ return (Constraint*)buffer; }
+		Constraint* get()			{ return (Constraint*)buffer; }
+	};
+
 	struct OpConstraint : public Constraint
 	{
 		enum class Op : int
@@ -115,7 +130,10 @@ namespace fcheck
 			//Inf		// <
 		};
 
-		OpConstraint(VarId _v0, VarId _v1, Op _op,int _offset) : v0(_v0), v1(_v1), op(_op), offset(_offset) {};
+		OpConstraint(VarId _v0, VarId _v1, Op _op,int _offset) : v0(_v0), v1(_v1), op(_op), offset(_offset)
+		{
+			static_assert(sizeof(OpConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
+		};
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
 		virtual bool Evaluate(const Array<InstVar>& inst_vars);
@@ -127,7 +145,10 @@ namespace fcheck
 	};
 	struct EqualityConstraint : public Constraint
 	{
-		EqualityConstraint(VarId _v0, VarId _v1) : v0(_v0), v1(_v1) {};
+		EqualityConstraint(VarId _v0, VarId _v1) : v0(_v0), v1(_v1)
+		{
+			static_assert(sizeof(EqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
+		};
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
 		virtual bool Evaluate(const Array<InstVar>& inst_vars);
@@ -137,7 +158,10 @@ namespace fcheck
 	};
 	struct OrEqualityConstraint : public Constraint
 	{
-		OrEqualityConstraint(VarId _v0, VarId _v1, VarId _v2) : v0(_v0), v1(_v1), v2(_v2) {};
+		OrEqualityConstraint(VarId _v0, VarId _v1, VarId _v2) : v0(_v0), v1(_v1), v2(_v2)
+		{
+			static_assert(sizeof(OrEqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
+		};
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
 		virtual bool Evaluate(const Array<InstVar>& inst_vars);
@@ -147,7 +171,10 @@ namespace fcheck
 	};
 	struct CombinedEqualityConstraint : public Constraint
 	{
-		CombinedEqualityConstraint(VarId _v0, VarId _v1, VarId _v2, VarId _v3) : v0(_v0), v1(_v1), v2(_v2), v3(_v3) {};
+		CombinedEqualityConstraint(VarId _v0, VarId _v1, VarId _v2, VarId _v3) : v0(_v0), v1(_v1), v2(_v2), v3(_v3)
+		{
+			static_assert(sizeof(OrEqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
+		};
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
 		virtual bool Evaluate(const Array<InstVar>& inst_vars);
@@ -157,7 +184,10 @@ namespace fcheck
 	};
 	struct OrRangeConstraint : public Constraint
 	{
-		OrRangeConstraint(VarId _v0, VarId _v1, int _min, int _max) : v0(_v0), v1(_v1), min(_min), max(_max) {};
+		OrRangeConstraint(VarId _v0, VarId _v1, int _min, int _max) : v0(_v0), v1(_v1), min(_min), max(_max)
+		{
+			static_assert(sizeof(OrEqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
+		};
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
 		virtual bool Evaluate(const Array<InstVar>& inst_vars);
@@ -193,7 +223,6 @@ namespace fcheck
 		void RestoreSavedDomainStep();
 
 		int assigned_var_count = 0;
-		//int unassigned_idx = 0;
 		Array<InstVar> inst_vars;
 		Array<Domain> current_domains;			// domains, changed on the go by the forward-checking algo
 		Array<SavedDomainStep> saved_domains;	// backup_domains to restore after a forward-checking step
@@ -207,20 +236,21 @@ namespace fcheck
 	{
 	public:
 		CSP() = default;
-		~CSP();
 
 		VarId AddIntVar(const char* name_id, const Domain& domain);
 		VarId AddIntVar(const char* name_id, int min_val, int max_val);
 		VarId AddBoolVar(const char* name_id);
 		template <class T>
 		void PushConstraint(const T& con);
+		void LinkConstraints();
 
 		bool ForwardCheckingStep(Assignment& a) const;
 
 		// Static parameters, unaffected by searching algo
 		Array<Var> vars;
-		Array<Constraint*> constraints;
+		Array<GenericConstraint> constraints;
 		Array<Domain> domains;
+		Array<const char*> var_names;
 	};
 
 }; /*namespace fcheck*/
@@ -234,7 +264,6 @@ namespace fcheck
 	void Assignment::Reset(const CSP& csp)
 	{
 		assigned_var_count = 0;
-		//unassigned_idx = 0;
 
 		inst_vars.clear();
 		inst_vars.resize(csp.domains.size());
@@ -257,11 +286,10 @@ namespace fcheck
 
 	VarId Assignment::NextUnassignedVar()
 	{
-		for (int idx = 0/*unassigned_idx*/; idx < inst_vars.size(); idx++)
+		for (int idx = assigned_var_count; idx < inst_vars.size(); idx++)
 		{
 			if (inst_vars[idx].value == InstVar::UNASSIGNED)
 			{
-				//unassigned_idx = idx + 1;
 				return (VarId)idx;
 			}
 		}
@@ -270,7 +298,7 @@ namespace fcheck
 
 	void Assignment::AssignVar(VarId vid, int val)
 	{
-		inst_vars[vid].value = val;//var.domain.values[dom_value_idx];
+		inst_vars[vid].value = val;
 		assigned_var_count++;
 #ifdef FCHECK_WITH_STATS
 		stats.assigned_vars++;
@@ -306,18 +334,12 @@ namespace fcheck
 		return domain_step.domains.back();
 	}
 
-	CSP::~CSP()
-	{
-		for (int c_idx = 0; c_idx < (int)constraints.size(); c_idx++)
-		{
-			delete constraints[c_idx];
-		}
-	}
 	VarId CSP::AddIntVar(const char* name_id, const Domain& domain)
 	{
 		Var new_var = { (VarId)vars.size(), {} };
 		vars.push_back(new_var);
 		domains.push_back(domain);
+		var_names.push_back(name_id);
 
 		return new_var.var_id;
 	}
@@ -332,16 +354,23 @@ namespace fcheck
 		Domain new_dom = { DomainType::Values, {0, 1} };
 		vars.push_back(new_var);
 		domains.push_back(new_dom);
+		var_names.push_back(name_id);
 
 		return new_var.var_id;
 	}
 	template <class T>
 	void CSP::PushConstraint(const T& con)
 	{
-		int cid = (int)constraints.size();
-		T* new_con = new T(con);
-		constraints.push_back(new_con);
-		new_con->LinkVars(vars);
+		GenericConstraint gen_con;
+		new(gen_con.get()) T(con);
+		constraints.push_back(std::move(gen_con));
+	}
+	void CSP::LinkConstraints()
+	{
+		for (int c_idx = 0; c_idx < constraints.size(); c_idx++)
+		{
+			constraints[c_idx]->LinkVars(vars);
+		}
 	}
 
 	bool CSP::ForwardCheckingStep(Assignment& a) const
@@ -490,83 +519,15 @@ namespace fcheck
 			Domain& dom = a.current_domains[v0];
 			/*const SavedDomain& sav_dom =*/ a.EnsureSavedDomain(v0, dom);
 
-			if (dom.type == DomainType::Values)
+			if (op == Op::Equal)
 			{
-				if (op == Op::Equal)
-				{
-					for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
-					{
-						if (oth_val == dom.values[d_idx])
-						{
-							dom.values.clear();
-							dom.values.push_back(oth_val);
-							return true;
-						}
-					}
-				}
-				else // Op::NotEqual
-				{
-					for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
-					{
-						if (oth_val == dom.values[d_idx])
-						{
-							dom.values.erase(dom.values.begin() + d_idx);
-							break;
-						}
-					}
-				}
+				dom.Intersect(oth_val);
 			}
-			else
+			else // Op::NotEqual
 			{
-				if (op == Op::Equal)
-				{
-					for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
-					{
-						int min = dom.values[r_idx];
-						int max = dom.values[r_idx + 1];
-						if (min <= oth_val && oth_val < max)
-						{
-							dom.type = DomainType::Values;
-							dom.values.clear();
-							dom.values.push_back(oth_val);
-							return true;
-						}
-					}
-				}
-				else
-				{
-					for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
-					{
-						int min = dom.values[r_idx];
-						int max = dom.values[r_idx + 1];
-						if (min <= oth_val && oth_val < max)
-						{
-							if (max - min <= 1)
-							{
-								dom.values.erase(dom.values.begin() + r_idx, dom.values.begin() + r_idx + 2);
-							}
-							else
-							{
-								if (oth_val == min)
-								{
-									dom.values[r_idx] = oth_val + 1;
-								}
-								else if (oth_val + 1 == max)
-								{
-									dom.values[r_idx + 1] = oth_val;
-								}
-								else
-								{
-									dom.values[r_idx + 1] = oth_val;
-									dom.values.insert(dom.values.begin() + (r_idx + 2), max);
-									dom.values.insert(dom.values.begin() + (r_idx + 2), oth_val + 1);
-								}
-							}
-							break;
-						}
-					}
-				}
+				dom.Exclude(oth_val);
 			}
+
 			if (dom.values.empty())
 			{
 				// Domain wipe out
@@ -576,7 +537,6 @@ namespace fcheck
 		};
 
 		// there are only two vars, and one has just been assigned
-		//int unassigned_idx = a.inst_vars[v1].value == InstVar::UNASSIGNED ? 1 : 0;
 		int v0_val = a.inst_vars[v0].value;
 		int v1_val = a.inst_vars[v1].value;
 
@@ -616,42 +576,18 @@ namespace fcheck
 		auto DoCheck = [&a](VarId v0, int v0_val, int oth_val)->bool
 		{
 			Domain& dom = a.current_domains[v0];
-			/*const SavedDomain& sav_dom =*/ a.EnsureSavedDomain(v0, dom);
+			a.EnsureSavedDomain(v0, dom);
 
-			if (dom.type == DomainType::Values)
+			dom.Intersect(oth_val);
+			if (dom.values.empty())
 			{
-				for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
-				{
-					if (oth_val == dom.values[d_idx])
-					{
-						dom.values.clear();
-						dom.values.push_back(oth_val);
-						return true;
-					}
-				}
+				// Domain wipe out
+				return false;
 			}
-			else
-			{
-				for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
-				{
-					int min = dom.values[r_idx];
-					int max = dom.values[r_idx + 1];
-					if (min <= oth_val && oth_val < max)
-					{
-						dom.type = DomainType::Values;
-						dom.values.clear();
-						dom.values.push_back(oth_val);
-						return true;
-					}
-				}
-			}
-
-			// Domain wipe out
-			return false;
+			return true;
 		};
 
 		// there are only two vars, and one has just been assigned
-		//int unassigned_idx = a.inst_vars[v1].value == InstVar::UNASSIGNED ? 1 : 0;
 		int v0_val = a.inst_vars[v0].value;
 		int v1_val = a.inst_vars[v1].value;
 
@@ -699,44 +635,9 @@ namespace fcheck
 		if (v0_val == InstVar::UNASSIGNED && v1_val != InstVar::UNASSIGNED && v2_val != InstVar::UNASSIGNED)
 		{
 			Domain& dom = a.current_domains[v0];
-			/*const SavedDomain& sav_dom =*/ a.EnsureSavedDomain(v0, dom);
+			a.EnsureSavedDomain(v0, dom);
 
-			if (dom.type == DomainType::Values)
-			{
-				int write_idx = 0;
-				for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
-				{
-					int val = dom.values[d_idx];
-					if (v1_val == val)
-					{
-						dom.values[write_idx++] = v1_val;
-					}
-					else if (v2_val == val)
-					{
-						dom.values[write_idx++] = v2_val;
-					}
-				}
-				dom.values.erase(dom.values.begin() + write_idx, dom.values.end());
-			}
-			else
-			{
-				dom.type = DomainType::Values;
-				int write_idx = 0;
-				for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
-				{
-					int min = dom.values[r_idx];
-					int max = dom.values[r_idx + 1];
-					if (min <= v1_val && v1_val < max)
-					{
-						dom.values[write_idx++] = v1_val;
-					}
-					if (min <= v2_val && v2_val < max)
-					{
-						dom.values[write_idx++] = v2_val;
-					}
-				}
-				dom.values.erase(dom.values.begin() + write_idx, dom.values.end());
-			}
+			dom.Intersect(v1_val, v2_val);
 
 			if (dom.values.empty())
 			{
@@ -779,43 +680,22 @@ namespace fcheck
 		int v2_val = a.inst_vars[v2].value;
 		int v3_val = a.inst_vars[v2].value;
 
-		if (v0_val == InstVar::UNASSIGNED && v1_val != InstVar::UNASSIGNED && v2_val != InstVar::UNASSIGNED && v3_val != InstVar::UNASSIGNED)
+		if (v0_val == InstVar::UNASSIGNED &&
+			v1_val != InstVar::UNASSIGNED &&
+			v2_val != InstVar::UNASSIGNED &&
+			v3_val != InstVar::UNASSIGNED)
 		{
-			int comb_val = v1_val + v2_val - v3_val;
-
 			Domain& dom = a.current_domains[v0];
-			/*const SavedDomain& sav_dom =*/ a.EnsureSavedDomain(v0, dom);
+			a.EnsureSavedDomain(v0, dom);
 
-			if (dom.type == DomainType::Values)
-			{
-				for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
-				{
-					if (comb_val == dom.values[d_idx])
-					{
-						dom.values.clear();
-						dom.values.push_back(comb_val);
-						return true;
-					}
-				}
-			}
-			else
-			{
-				for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
-				{
-					int min = dom.values[r_idx];
-					int max = dom.values[r_idx + 1];
-					if (min <= comb_val && comb_val < max)
-					{
-						dom.type = DomainType::Values;
-						dom.values.clear();
-						dom.values.push_back(comb_val);
-						return true;
-					}
-				}
-			}
+			int comb_val = v1_val + v2_val - v3_val;
+			dom.Intersect(comb_val);
 
-			// Domain wipe out
-			return false;
+			if (dom.values.empty())
+			{
+				// Domain wipe out
+				return false;
+			}
 		}
 
 		return true;
@@ -843,40 +723,13 @@ namespace fcheck
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
 #endif
-		return true;
 #if 0
-		auto DoCheck = [&a, &min=min, &max=max](VarId v0)->bool
+		auto DoCheck = [&a](VarId v0, int min, int max)->bool
 		{
 			Domain& dom = a.current_domains[v0];
 			const SavedDomain& sav_dom = a.EnsureSavedDomain(v0, dom);
 
-			dom.values.clear();
-			if (dom.type == DomainType::Values)
-			{
-				for (int d_idx = 0; d_idx < dom.values.size(); d_idx++)
-				{
-					int val = dom.values[d_idx];
-					if (val >= min && val < max)
-					{
-						dom.values.push_back(val);
-					}
-				}
-			}
-			else
-			{
-				dom.type = DomainType::Values;
-				for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
-				{
-					int dmin = dom.values[r_idx];
-					int dmax = dom.values[r_idx + 1];
-					int imin = min > dmin ? min : dmin;
-					int imax = max < dmax ? max : dmax;
-					for (int val = imin; val < imax; val++)
-					{
-						dom.values.push_back(val);
-					}
-				}
-			}
+			dom.IntersectRange(min, max);
 
 			if (dom.values.empty())
 			{
@@ -893,15 +746,166 @@ namespace fcheck
 		// Only restrict v0 domain if v1 range eq is not respected
 		if (v0_val == InstVar::UNASSIGNED && (v1_val < min || v1_val >= max) )
 		{
-			return DoCheck(v0);
+			return DoCheck(v0, min, max);
 		}
 		if (v1_val == InstVar::UNASSIGNED && (v0_val < min || v0_val >= max))
 		{
-			return DoCheck(v1);
+			return DoCheck(v1, min, max);
 		}
 
 		return true;
+#else
+		return true;
 #endif
+	}
+
+	void Domain::Intersect(int val)
+	{
+		if (type == DomainType::Values)
+		{
+			for (int d_idx = 0; d_idx < values.size(); d_idx++)
+			{
+				if (val == values[d_idx])
+				{
+					values.clear();
+					values.push_back(val);
+					break;
+				}
+			}
+		}
+		else
+		{
+			for (int r_idx = 0; r_idx < values.size(); r_idx += 2)
+			{
+				if (values[r_idx] <= val && val < values[r_idx + 1])
+				{
+					type = DomainType::Values;
+					values.clear();
+					values.push_back(val);
+					break;
+				}
+			}
+		}
+	}
+	void Domain::Exclude(int val)
+	{
+		if (type == DomainType::Values)
+		{
+			for (int d_idx = 0; d_idx < values.size(); d_idx++)
+			{
+				if (val == values[d_idx])
+				{
+					values.erase(values.begin() + d_idx);
+					break;
+				}
+			}
+		}
+		else
+		{
+			for (int r_idx = 0; r_idx < values.size(); r_idx += 2)
+			{
+				int min = values[r_idx];
+				int max = values[r_idx + 1];
+				if (min <= val && val < max)
+				{
+					if (max - min <= 1)
+					{
+						values.erase(values.begin() + r_idx, values.begin() + r_idx + 2);
+					}
+					else
+					{
+						if (val == min)
+						{
+							values[r_idx] = val + 1;
+						}
+						else if (val + 1 == max)
+						{
+							values[r_idx + 1] = val;
+						}
+						else
+						{
+							values[r_idx + 1] = val;
+							values.insert(values.begin() + (r_idx + 2), max);
+							values.insert(values.begin() + (r_idx + 2), val + 1);
+						}
+					}
+					break;
+				}
+			}
+		}
+	}
+	void Domain::Intersect(int val0, int val1)
+	{
+		int write_idx = 0;
+		if (type == DomainType::Values)
+		{
+			for (int d_idx = 0; d_idx < values.size(); d_idx++)
+			{
+				int val = values[d_idx];
+				if (val0 == val)
+				{
+					values[write_idx++] = val0;
+				}
+				else if (val1 == val)
+				{
+					values[write_idx++] = val1;
+				}
+			}
+		}
+		else
+		{
+			type = DomainType::Values;
+			for (int r_idx = 0; r_idx < values.size(); r_idx += 2)
+			{
+				int min = values[r_idx];
+				int max = values[r_idx + 1];
+				if (min <= val0 && val0 < max)
+				{
+					values[write_idx++] = val0;
+				}
+				if (min <= val1 && val1 < max)
+				{
+					values[write_idx++] = val1;
+				}
+			}
+		}
+		values.erase(values.begin() + write_idx, values.end());
+	}
+	void Domain::IntersectRange(int rmin, int rmax)
+	{
+		if (type == DomainType::Values)
+		{
+			int write_idx = 0;
+			for (int d_idx = 0; d_idx < values.size(); d_idx++)
+			{
+				int val = values[d_idx];
+				if (rmin <= val && val < rmax)
+				{
+					values[write_idx++] = val;
+				}
+			}
+			values.erase(values.begin() + write_idx, values.end());
+		}
+		else
+		{
+			for (int r_idx = 0; r_idx < values.size(); )
+			{
+				int min = values[r_idx];
+				int max = values[r_idx + 1];
+				int new_min = min > rmin ? min : rmin;
+				int new_max = max < rmax ? max : rmax;
+				if (new_max > new_min)
+				{
+					values[r_idx] = new_min;
+					values[r_idx + 1] = new_max;
+					r_idx += 2;
+				}
+				else
+				{
+					values.erase(values.begin() + r_idx, values.begin() + r_idx + 2);
+				}
+			}
+		}
 	}
 
 }; /*namespace fcheck*/
