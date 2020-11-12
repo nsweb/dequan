@@ -41,6 +41,9 @@ namespace fcheck
 	class CSP;
 
 #ifdef FCHECK_WITH_STATS
+	/**
+	 * Various statistics for the searching algorithm.
+	 */
 	struct Stats
 	{
 		Stats() = default;
@@ -55,6 +58,7 @@ namespace fcheck
 		Values = 0,
 		Ranges,
 	};
+	/** Domain represents either continuous ranges [min, max) of values or a set of values that a Var can take */
 	struct Domain
 	{
 		Domain() = default;
@@ -66,7 +70,7 @@ namespace fcheck
 		DomainType type = DomainType::Values;
 		Array<int> values;
 	};
-
+	/** Backup domain, that is used to restore variables domain when searching algo needs to backtrack */
 	struct SavedDomain
 	{
 		SavedDomain() = default;
@@ -76,6 +80,7 @@ namespace fcheck
 		Array<int> values;
 	};
 
+	/** Set of SavedDomains for one step of the searching algo */
 	struct SavedDomainStep
 	{
 		SavedDomainStep() = default;
@@ -84,6 +89,10 @@ namespace fcheck
 		Array<SavedDomain> domains;
 	};
 
+	/**
+	 * Represents a value of an instanced variable.
+	 * The searching algo is finished when all variables have been instanced.
+	 */
 	struct InstVar
 	{
 		static const int UNASSIGNED = -INT_MAX;
@@ -93,6 +102,11 @@ namespace fcheck
 		int value = InstVar::UNASSIGNED;
 	};
 
+	/**
+	 * Base class for representing constraints on variables.
+	 * You can define new derived constraints, but note that sizeof(YourNewConstraint) must be <= MAX_CONSTRAINT_SIZE.
+	 * Increase this value if you have larger constraint classes.
+	 */
 	struct Constraint
 	{
 		enum class Eval : int
@@ -110,6 +124,11 @@ namespace fcheck
 		virtual bool AplyArcConsistency(Assignment& a) { return true; }
 	};
 
+	/**
+	 * Can represent and store any Constraint derived class.
+	 * This class exists to avoid heap allocations while still supporting polymorphism when storing all constraints.
+	 * i.e. Array<GenericConstraint> instead of Array<Constraint*>
+	 */
 	struct GenericConstraint
 	{
 		char buffer[Constraint::MAX_CONSTRAINT_SIZE];
@@ -118,6 +137,7 @@ namespace fcheck
 		Constraint* get()			{ return (Constraint*)buffer; }
 	};
 
+	/** Constraint of the form : v0 (op) v1 + offset */
 	struct OpConstraint : public Constraint
 	{
 		enum class Op : int
@@ -143,6 +163,8 @@ namespace fcheck
 		Op op = Op::Equal;
 		int offset = 0;
 	};
+
+	/** Constraint of the form : v0 == v1 */
 	struct EqualityConstraint : public Constraint
 	{
 		EqualityConstraint(VarId _v0, VarId _v1) : v0(_v0), v1(_v1)
@@ -156,6 +178,8 @@ namespace fcheck
 
 		VarId v0, v1;
 	};
+
+	/** Constraint of the form : v0 == v1 || v0 == v2 */
 	struct OrEqualityConstraint : public Constraint
 	{
 		OrEqualityConstraint(VarId _v0, VarId _v1, VarId _v2) : v0(_v0), v1(_v1), v2(_v2)
@@ -169,6 +193,8 @@ namespace fcheck
 
 		VarId v0, v1, v2;
 	};
+
+	/** Constraint of the form : v0 == v1 + v2 - v3 */
 	struct CombinedEqualityConstraint : public Constraint
 	{
 		CombinedEqualityConstraint(VarId _v0, VarId _v1, VarId _v2, VarId _v3) : v0(_v0), v1(_v1), v2(_v2), v3(_v3)
@@ -182,6 +208,8 @@ namespace fcheck
 
 		VarId v0, v1, v2, v3;
 	};
+
+	/** Constraint of the form : (v0 >= min && v0 < max) || (v1 >= min && v1 < max) */
 	struct OrRangeConstraint : public Constraint
 	{
 		OrRangeConstraint(VarId _v0, VarId _v1, int _min, int _max) : v0(_v0), v1(_v1), min(_min), max(_max)
@@ -197,6 +225,7 @@ namespace fcheck
 		int min, max;
 	};
 
+	/** Class for representing the different variables of the CSP to solve. */
 	struct Var
 	{
 		Var() = default;
@@ -204,52 +233,79 @@ namespace fcheck
 		static const VarId INVALID = -1;
 
 		VarId var_id = Var::INVALID;
+		/** All the constraints where the variable is referenced */
 		Array<Constraint*> linked_constraints;
 	};
 
+	/**
+	 * Assignment is a snapshot of the progression of the search algorithm.
+	 * All working variables of the search algorithm goes here.
+	 */
 	class Assignment
 	{
 	public:
 		Assignment();
+		/** Reset the assignment and make it ready for a new solving. */
 		void Reset(const CSP& csp);
+		/** Whether all variables have been assigned. */
 		bool IsComplete();
 		int GetInstVarValue(VarId vid) const;
 		const Domain& GetCurrentDomain(VarId vid) const;
 		VarId NextUnassignedVar();
 		void AssignVar(VarId vid, int val);
 		void UnAssignVar(VarId vid);
+		/** Try and validate that none of the passed constraints is violated. */
 		bool ValidateConstraints(const Array<Constraint*>& constraints) /*const*/;
-		const SavedDomain& EnsureSavedDomain(VarId vid, const Domain& dom);
+		/** Ensure that the variable's domain has been backed up once in this step before we modify it. */
+		void EnsureSavedDomain(VarId vid, const Domain& dom);
+		/** Restore all the domains saved during this step, typically when a backtrack is needed. */
 		void RestoreSavedDomainStep();
 
+		/** Current number of assigned variables, the search algo is finished when all variables have been assigned */
 		int assigned_var_count = 0;
+		/** Current instanced values of the variables */
 		Array<InstVar> inst_vars;
-		Array<Domain> current_domains;			// domains, changed on the go by the forward-checking algo
-		Array<SavedDomainStep> saved_domains;	// backup_domains to restore after a forward-checking step
+		/** Current domains, starting from the initial domains and progressively reduced by the searching algo */
+		Array<Domain> current_domains;
+		/** Backed up domains, used to restore domains if the searching algo needs to backtrack */
+		Array<SavedDomainStep> saved_domains;
 
 #ifdef FCHECK_WITH_STATS
 		Stats stats;
 #endif
 	};
 
+	/**
+	 * Class representing a Constraint Satisfying Problem.
+	 * This is where you model the problem using variables and constraints.
+	 * Once defined, CSP is static and never modified by the searching algorithm.
+	 */
 	class CSP
 	{
 	public:
 		CSP() = default;
 
-		VarId AddIntVar(const char* name_id, const Domain& domain);
+		/** Add an integer variable that can take any value in range [min, max). Including min but excluding max. */
 		VarId AddIntVar(const char* name_id, int min_val, int max_val);
+		/** Add an integer variable with a custom domain. */
+		VarId AddIntVar(const char* name_id, const Domain& domain);
+		/** Add a boolean variable. That is, internally, an integer that can either be 0 or 1. */
 		VarId AddBoolVar(const char* name_id);
+		/** Add a new constraint derived from the Constraint class */
 		template <class T>
-		void PushConstraint(const T& con);
-		void LinkConstraints();
-
+		void AddConstraint(const T& con);
+		/** You need to call FinalizeModel() once all var and constraints have been added. */
+		void FinalizeModel();
+		/** Recursive method to solve the CSP. */
 		bool ForwardCheckingStep(Assignment& a) const;
 
-		// Static parameters, unaffected by searching algo
+		/** All the variables in the model */
 		Array<Var> vars;
+		/** All the constraints in the model */
 		Array<GenericConstraint> constraints;
+		/** Domains of the variables, stored at the same index at the corresponding var */
 		Array<Domain> domains;
+		/** Names of the variable, stored as a convenience for the outside world */
 		Array<const char*> var_names;
 	};
 
@@ -272,13 +328,15 @@ namespace fcheck
 		saved_domains.clear();
 	}
 
-	bool Assignment::IsComplete() { return assigned_var_count == inst_vars.size(); }
+	bool Assignment::IsComplete()
+	{
+		return assigned_var_count == inst_vars.size();
+	}
 
 	const Domain& Assignment::GetCurrentDomain(VarId vid) const
 	{
 		return current_domains[vid];
 	}
-
 	int Assignment::GetInstVarValue(VarId vid) const
 	{
 		return inst_vars[vid].value;
@@ -286,14 +344,9 @@ namespace fcheck
 
 	VarId Assignment::NextUnassignedVar()
 	{
-		for (int idx = assigned_var_count; idx < inst_vars.size(); idx++)
-		{
-			if (inst_vars[idx].value == InstVar::UNASSIGNED)
-			{
-				return (VarId)idx;
-			}
-		}
-		return (VarId)inst_vars.size();
+		// Since variables are instanced in the order of the array, the next unassigned var is necessarily
+		// the number of currently assigned vars.
+		return (VarId)assigned_var_count;
 	}
 
 	void Assignment::AssignVar(VarId vid, int val)
@@ -322,16 +375,15 @@ namespace fcheck
 		}
 	}
 
-	const SavedDomain& Assignment::EnsureSavedDomain(VarId vid, const Domain& dom)
+	void Assignment::EnsureSavedDomain(VarId vid, const Domain& dom)
 	{
 		SavedDomainStep& domain_step = saved_domains.back();
 		for (int d_idx = 0; d_idx < domain_step.domains.size(); d_idx++)
 		{
 			if (domain_step.domains[d_idx].var_id == vid)
-				return domain_step.domains[d_idx];
+				return;
 		}
 		domain_step.domains.push_back(SavedDomain{ vid, dom.type, dom.values });
-		return domain_step.domains.back();
 	}
 
 	VarId CSP::AddIntVar(const char* name_id, const Domain& domain)
@@ -350,23 +402,20 @@ namespace fcheck
 	}
 	VarId CSP::AddBoolVar(const char* name_id)
 	{
-		Var new_var = { (VarId)vars.size(), {} };
 		Domain new_dom = { DomainType::Values, {0, 1} };
-		vars.push_back(new_var);
-		domains.push_back(new_dom);
-		var_names.push_back(name_id);
-
-		return new_var.var_id;
+		return AddIntVar(name_id, new_dom);
 	}
 	template <class T>
-	void CSP::PushConstraint(const T& con)
+	void CSP::AddConstraint(const T& con)
 	{
 		GenericConstraint gen_con;
 		new(gen_con.get()) T(con);
 		constraints.push_back(std::move(gen_con));
 	}
-	void CSP::LinkConstraints()
+	void CSP::FinalizeModel()
 	{
+		// Once we know that the constraints array won't change (and won't be reallocated),
+		// we can link the constraint adresses with the variables.
 		for (int c_idx = 0; c_idx < constraints.size(); c_idx++)
 		{
 			constraints[c_idx]->LinkVars(vars);
@@ -378,7 +427,7 @@ namespace fcheck
 		if (a.IsComplete())
 			return true;
 
-		// add a new saved domain step
+		// Add a new saved domain step
 		a.saved_domains.push_back(SavedDomainStep());
 
 		VarId vid = a.NextUnassignedVar();
@@ -393,10 +442,12 @@ namespace fcheck
 				bool success = true;
 				for (int c_idx = 0; success && c_idx < var.linked_constraints.size(); c_idx++)
 				{
+					// Restrict domain of other variables, by removing values that would violate linked constraints
 					success &= var.linked_constraints[c_idx]->AplyArcConsistency(a);
 				}
 				if (success)
 				{
+					// This instanced variable did not violate any constraints, recurse and continue with next variable
 					success = ForwardCheckingStep(a);
 				}
 				if (success)
@@ -406,7 +457,7 @@ namespace fcheck
 				else
 				{
 					a.UnAssignVar(var.var_id);
-					// Restore saved domains
+					// Restore saved domains since they may have been modified by applied arc consistencies or sub-steps
 					a.RestoreSavedDomainStep();
 				}
 			}
@@ -448,7 +499,6 @@ namespace fcheck
 		return false;
 	}
 
-	//////////////////////////////////////////////////////
 	bool Assignment::ValidateConstraints(const Array<Constraint*>& constraints) /*const*/
 	{
 		for (int c_idx = 0; c_idx < constraints.size(); c_idx++)
@@ -517,7 +567,7 @@ namespace fcheck
 		auto DoCheck = [&a](VarId v0, int v0_val, int oth_val, Op op)->bool
 		{
 			Domain& dom = a.current_domains[v0];
-			/*const SavedDomain& sav_dom =*/ a.EnsureSavedDomain(v0, dom);
+			a.EnsureSavedDomain(v0, dom);
 
 			if (op == Op::Equal)
 			{
@@ -627,7 +677,7 @@ namespace fcheck
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
 #endif
-		// there are three vars, and one has just been assigned
+		// there are three vars, we need two var assignments to apply arc consistency
 		int v0_val = a.inst_vars[v0].value;
 		int v1_val = a.inst_vars[v1].value;
 		int v2_val = a.inst_vars[v2].value;
@@ -674,7 +724,7 @@ namespace fcheck
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
 #endif
-		// there are three vars, and one has just been assigned
+		// there are four vars, we need two var assignments to apply arc consistency
 		int v0_val = a.inst_vars[v0].value;
 		int v1_val = a.inst_vars[v1].value;
 		int v2_val = a.inst_vars[v2].value;

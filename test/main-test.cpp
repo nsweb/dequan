@@ -23,7 +23,7 @@ std::string string_format(const char* format, Args ... args)
 bool NQueensTest(const int num_queen)
 {
     std::cout << "\n----------------------------\n";
-    std::cout << num_queen << "-queens test2 : ";
+    std::cout << num_queen << "-queens test : ";
 
     fcheck::CSP csp;
     //fcheck::Domain raw_dom;
@@ -47,12 +47,12 @@ bool NQueensTest(const int num_queen)
     {
         for (int j = i + 1; j < num_queen; j++)
         {
-            csp.PushConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, 0));
-            csp.PushConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, j - i));
-            csp.PushConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, i - j));
+            csp.AddConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, 0));
+            csp.AddConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, j - i));
+            csp.AddConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, i - j));
         }
     }
-    csp.LinkConstraints();
+    csp.FinalizeModel();
 
     fcheck::Assignment a;
     a.Reset(csp);
