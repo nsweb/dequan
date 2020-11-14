@@ -115,13 +115,12 @@ namespace fcheck
 			Passed,
 			Failed
 		};
-		static const int MAX_CONSTRAINT_SIZE = 24;
+		static const int MAX_CONSTRAINT_SIZE = 32;
 
 		Constraint() = default;
 		virtual void LinkVars(Array<Var>& vars) = 0;
-		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars) = 0;
-		virtual bool Evaluate(const Array<InstVar>& inst_vars) = 0;
-		virtual bool AplyArcConsistency(Assignment& a) { return true; }
+		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid) = 0;
+		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid) { return true; }
 	};
 
 	/**
@@ -155,9 +154,8 @@ namespace fcheck
 			static_assert(sizeof(OpConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
 		};
 		virtual void LinkVars(Array<Var>& vars);
-		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
-		virtual bool Evaluate(const Array<InstVar>& inst_vars);
-		virtual bool AplyArcConsistency(Assignment& a);
+		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
+		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
 
 		VarId v0, v1;
 		Op op = Op::Equal;
@@ -172,9 +170,8 @@ namespace fcheck
 			static_assert(sizeof(EqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
 		};
 		virtual void LinkVars(Array<Var>& vars);
-		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
-		virtual bool Evaluate(const Array<InstVar>& inst_vars);
-		virtual bool AplyArcConsistency(Assignment& a);
+		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
+		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
 
 		VarId v0, v1;
 	};
@@ -187,9 +184,8 @@ namespace fcheck
 			static_assert(sizeof(OrEqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
 		};
 		virtual void LinkVars(Array<Var>& vars);
-		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
-		virtual bool Evaluate(const Array<InstVar>& inst_vars);
-		virtual bool AplyArcConsistency(Assignment& a);
+		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
+		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
 
 		VarId v0, v1, v2;
 	};
@@ -199,12 +195,11 @@ namespace fcheck
 	{
 		CombinedEqualityConstraint(VarId _v0, VarId _v1, VarId _v2, VarId _v3) : v0(_v0), v1(_v1), v2(_v2), v3(_v3)
 		{
-			static_assert(sizeof(OrEqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
+			static_assert(sizeof(CombinedEqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
 		};
 		virtual void LinkVars(Array<Var>& vars);
-		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
-		virtual bool Evaluate(const Array<InstVar>& inst_vars);
-		virtual bool AplyArcConsistency(Assignment& a);
+		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
+		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
 
 		VarId v0, v1, v2, v3;
 	};
@@ -214,15 +209,28 @@ namespace fcheck
 	{
 		OrRangeConstraint(VarId _v0, VarId _v1, int _min, int _max) : v0(_v0), v1(_v1), min(_min), max(_max)
 		{
-			static_assert(sizeof(OrEqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
+			static_assert(sizeof(OrRangeConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
 		};
 		virtual void LinkVars(Array<Var>& vars);
-		virtual Eval TryEvaluate(const Array<InstVar>& inst_vars);
-		virtual bool Evaluate(const Array<InstVar>& inst_vars);
-		virtual bool AplyArcConsistency(Assignment& a);
+		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
+		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
 
 		VarId v0, v1;
 		int min, max;
+	};
+
+	/** Constraint of the form : v0 == v1 */
+	struct AllDifferentConstraint : public Constraint
+	{
+		AllDifferentConstraint(const Array<VarId>& vars) : alldiff_vars(vars)
+		{
+			static_assert(sizeof(AllDifferentConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
+		};
+		virtual void LinkVars(Array<Var>& vars);
+		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
+		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
+
+		Array<VarId> alldiff_vars;
 	};
 
 	/** Class for representing the different variables of the CSP to solve. */
@@ -255,7 +263,7 @@ namespace fcheck
 		void AssignVar(VarId vid, int val);
 		void UnAssignVar(VarId vid);
 		/** Try and validate that none of the passed constraints is violated. */
-		bool ValidateConstraints(const Array<Constraint*>& constraints) /*const*/;
+		bool ValidateVarConstraints(const Var& var) /*const*/;
 		/** Ensure that the variable's domain has been backed up once in this step before we modify it. */
 		void EnsureSavedDomain(VarId vid, const Domain& dom);
 		/** Restore all the domains saved during this step, typically when a backtrack is needed. */
@@ -289,11 +297,15 @@ namespace fcheck
 		VarId AddIntVar(const char* name_id, int min_val, int max_val);
 		/** Add an integer variable with a custom domain. */
 		VarId AddIntVar(const char* name_id, const Domain& domain);
+		/** Add an integer variable with a fixed value. */
+		VarId AddIntVar(const char* name_id, int val);
 		/** Add a boolean variable. That is, internally, an integer that can either be 0 or 1. */
 		VarId AddBoolVar(const char* name_id);
 		/** Add a new constraint derived from the Constraint class */
 		template <class T>
 		void AddConstraint(const T& con);
+		/** Add an all different constraints to a bunch of variables. Note that all variables must have the same initial domain. */
+		void AddAllDifferentConstraint(const Array<VarId>& var_ids);
 		/** You need to call FinalizeModel() once all var and constraints have been added. */
 		void FinalizeModel();
 		/** Recursive method to solve the CSP. */
@@ -400,6 +412,11 @@ namespace fcheck
 		Domain new_dom = { DomainType::Ranges, {min_val, max_val} };
 		return AddIntVar(name_id, new_dom);
 	}
+	VarId CSP::AddIntVar(const char* name_id, int val)
+	{
+		Domain new_dom = { DomainType::Values, {val} };
+		return AddIntVar(name_id, new_dom);
+	}
 	VarId CSP::AddBoolVar(const char* name_id)
 	{
 		Domain new_dom = { DomainType::Values, {0, 1} };
@@ -411,6 +428,10 @@ namespace fcheck
 		GenericConstraint gen_con;
 		new(gen_con.get()) T(con);
 		constraints.push_back(std::move(gen_con));
+	}
+	void CSP::AddAllDifferentConstraint(const Array<VarId>& var_ids)
+	{
+		AddConstraint(AllDifferentConstraint(var_ids));
 	}
 	void CSP::FinalizeModel()
 	{
@@ -437,13 +458,13 @@ namespace fcheck
 		auto LambdaStep = [this, &a, &var](int val)->bool
 		{
 			a.AssignVar(var.var_id, val);
-			if (a.ValidateConstraints(var.linked_constraints))
+			if (a.ValidateVarConstraints(var))
 			{
 				bool success = true;
 				for (int c_idx = 0; success && c_idx < var.linked_constraints.size(); c_idx++)
 				{
 					// Restrict domain of other variables, by removing values that would violate linked constraints
-					success &= var.linked_constraints[c_idx]->AplyArcConsistency(a);
+					success &= var.linked_constraints[c_idx]->AplyArcConsistency(a, var.var_id);
 				}
 				if (success)
 				{
@@ -499,14 +520,14 @@ namespace fcheck
 		return false;
 	}
 
-	bool Assignment::ValidateConstraints(const Array<Constraint*>& constraints) /*const*/
+	bool Assignment::ValidateVarConstraints(const Var& var) /*const*/
 	{
-		for (int c_idx = 0; c_idx < constraints.size(); c_idx++)
+		for (int c_idx = 0; c_idx < var.linked_constraints.size(); c_idx++)
 		{
 #ifdef FCHECK_WITH_STATS
 			stats.validated_constraints++;
 #endif
-			if (constraints[c_idx]->TryEvaluate(inst_vars) == Constraint::Eval::Failed)
+			if (var.linked_constraints[c_idx]->Evaluate(inst_vars, var.var_id) == Constraint::Eval::Failed)
 			{
 				return false;
 			}
@@ -519,47 +540,45 @@ namespace fcheck
 		vars[v0].linked_constraints.push_back(this);
 		vars[v1].linked_constraints.push_back(this);
 	}
-	Constraint::Eval OpConstraint::TryEvaluate(const Array<InstVar>& inst_vars)
+	Constraint::Eval OpConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
 		if (inst_vars[v0].value != InstVar::UNASSIGNED &&
 			inst_vars[v1].value != InstVar::UNASSIGNED)
-			return Evaluate(inst_vars) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
+		{
+			switch (op)
+			{
+			case Op::Equal:
+				if (inst_vars[v0].value == inst_vars[v1].value + offset)
+					return Constraint::Eval::Passed;
+				break;
+			case Op::NotEqual:
+				if (inst_vars[v0].value != inst_vars[v1].value + offset)
+					return Constraint::Eval::Passed;
+				break;
+				//case Op::SupEqual:
+				//	if (inst_vars[v0].value >= inst_vars[v1].value + offset)
+				//		return Constraint::Eval::Passed;
+				//	break;
+				//case Op::Sup:
+				//	if (inst_vars[v0].value > inst_vars[v1].value + offset)
+				//		return Constraint::Eval::Passed;
+				//	break;
+				//case Op::InfEqual:
+				//	if (inst_vars[v0].value <= inst_vars[v1].value + offset)
+				//		return Constraint::Eval::Passed;
+				//	break;
+				//case Op::Inf:
+				//	if (inst_vars[v0].value < inst_vars[v1].value + offset)
+				//		return Constraint::Eval::Passed;
+				//	break;
+			};
+
+			return Constraint::Eval::Failed;
+		}
 
 		return Constraint::Eval::NA;
 	}
-	bool OpConstraint::Evaluate(const Array<InstVar>& inst_vars)
-	{
-		switch (op)
-		{
-		case Op::Equal:
-			if (inst_vars[v0].value == inst_vars[v1].value + offset)
-				return true;
-			break;
-		case Op::NotEqual:
-			if (inst_vars[v0].value != inst_vars[v1].value + offset)
-				return true;
-			break;
-		//case Op::SupEqual:
-		//	if (inst_vars[v0].value >= inst_vars[v1].value + offset)
-		//		return true;
-		//	break;
-		//case Op::Sup:
-		//	if (inst_vars[v0].value > inst_vars[v1].value + offset)
-		//		return true;
-		//	break;
-		//case Op::InfEqual:
-		//	if (inst_vars[v0].value <= inst_vars[v1].value + offset)
-		//		return true;
-		//	break;
-		//case Op::Inf:
-		//	if (inst_vars[v0].value < inst_vars[v1].value + offset)
-		//		return true;
-		//	break;
-		};
-
-		return false;
-	}
-	bool OpConstraint::AplyArcConsistency(Assignment& a)
+	bool OpConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
@@ -606,19 +625,17 @@ namespace fcheck
 		vars[v0].linked_constraints.push_back(this);
 		vars[v1].linked_constraints.push_back(this);
 	}
-	Constraint::Eval EqualityConstraint::TryEvaluate(const Array<InstVar>& inst_vars)
+	Constraint::Eval EqualityConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
 		if (inst_vars[v0].value != InstVar::UNASSIGNED &&
 			inst_vars[v1].value != InstVar::UNASSIGNED)
-			return Evaluate(inst_vars) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
+		{
+			return inst_vars[v0].value == inst_vars[v1].value ? Constraint::Eval::Passed : Constraint::Eval::Failed;
+		}
 
 		return Constraint::Eval::NA;
 	}
-	bool EqualityConstraint::Evaluate(const Array<InstVar>& inst_vars)
-	{
-		return inst_vars[v0].value == inst_vars[v1].value;
-	}
-	bool EqualityConstraint::AplyArcConsistency(Assignment& a)
+	bool EqualityConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
@@ -658,21 +675,19 @@ namespace fcheck
 		vars[v1].linked_constraints.push_back(this);
 		vars[v2].linked_constraints.push_back(this);
 	}
-	Constraint::Eval OrEqualityConstraint::TryEvaluate(const Array<InstVar>& inst_vars)
+	Constraint::Eval OrEqualityConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
 		if (inst_vars[v0].value != InstVar::UNASSIGNED &&
 			inst_vars[v1].value != InstVar::UNASSIGNED &&
 			inst_vars[v2].value != InstVar::UNASSIGNED)
-			return Evaluate(inst_vars) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
+		{
+			return	(inst_vars[v0].value == inst_vars[v1].value ||
+					inst_vars[v0].value == inst_vars[v2].value) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
+		}
 
 		return Constraint::Eval::NA;
 	}
-	bool OrEqualityConstraint::Evaluate(const Array<InstVar>& inst_vars)
-	{
-		return	inst_vars[v0].value == inst_vars[v1].value ||
-				inst_vars[v0].value == inst_vars[v2].value;
-	}
-	bool OrEqualityConstraint::AplyArcConsistency(Assignment& a)
+	bool OrEqualityConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
@@ -705,21 +720,20 @@ namespace fcheck
 		vars[v2].linked_constraints.push_back(this);
 		vars[v3].linked_constraints.push_back(this);
 	}
-	Constraint::Eval CombinedEqualityConstraint::TryEvaluate(const Array<InstVar>& inst_vars)
+	Constraint::Eval CombinedEqualityConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
 		if (inst_vars[v0].value != InstVar::UNASSIGNED &&
 			inst_vars[v1].value != InstVar::UNASSIGNED &&
 			inst_vars[v2].value != InstVar::UNASSIGNED &&
 			inst_vars[v3].value != InstVar::UNASSIGNED)
-			return Evaluate(inst_vars) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
+		{
+			return	(inst_vars[v0].value == inst_vars[v1].value + inst_vars[v2].value - inst_vars[v3].value) ?
+				Constraint::Eval::Passed : Constraint::Eval::Failed;
+		}
 
 		return Constraint::Eval::NA;
 	}
-	bool CombinedEqualityConstraint::Evaluate(const Array<InstVar>& inst_vars)
-	{
-		return	inst_vars[v0].value == inst_vars[v1].value + inst_vars[v2].value - inst_vars[v3].value;
-	}
-	bool CombinedEqualityConstraint::AplyArcConsistency(Assignment& a)
+	bool CombinedEqualityConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
@@ -755,20 +769,18 @@ namespace fcheck
 		vars[v0].linked_constraints.push_back(this);
 		vars[v1].linked_constraints.push_back(this);
 	}
-	Constraint::Eval OrRangeConstraint::TryEvaluate(const Array<InstVar>& inst_vars)
+	Constraint::Eval OrRangeConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
 		if (inst_vars[v0].value != InstVar::UNASSIGNED &&
 			inst_vars[v1].value != InstVar::UNASSIGNED)
-			return Evaluate(inst_vars) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
+		{
+			return	(inst_vars[v0].value >= min && inst_vars[v0].value < max) ||
+					(inst_vars[v1].value >= min && inst_vars[v1].value < max) ? Constraint::Eval::Passed : Constraint::Eval::Failed;
+		}
 
 		return Constraint::Eval::NA;
 	}
-	bool OrRangeConstraint::Evaluate(const Array<InstVar>& inst_vars)
-	{
-		return	(inst_vars[v0].value >= min && inst_vars[v0].value < max) ||
-				(inst_vars[v1].value >= min && inst_vars[v1].value < max);
-	}
-	bool OrRangeConstraint::AplyArcConsistency(Assignment& a)
+	bool OrRangeConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
 #ifdef FCHECK_WITH_STATS
 		a.stats.applied_arcs++;
@@ -807,6 +819,52 @@ namespace fcheck
 #else
 		return true;
 #endif
+	}
+	void AllDifferentConstraint::LinkVars(Array<Var>& vars)
+	{
+		for (int v_idx = 0; v_idx < alldiff_vars.size(); v_idx++)
+		{
+			vars[alldiff_vars[v_idx]].linked_constraints.push_back(this);
+		}
+	}
+	Constraint::Eval AllDifferentConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vids)
+	{
+		int var_val = inst_vars[last_assigned_vids].value;
+		for (int v_idx = 0; v_idx < alldiff_vars.size(); v_idx++)
+		{
+			if (inst_vars[alldiff_vars[v_idx]].value == var_val && alldiff_vars[v_idx] != last_assigned_vids)
+			{
+				return Constraint::Eval::Failed;
+			}
+		}
+
+		return Constraint::Eval::Passed;
+	}
+	bool AllDifferentConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
+	{
+#ifdef FCHECK_WITH_STATS
+		a.stats.applied_arcs++;
+#endif
+		int val = a.inst_vars[last_assigned_vid].value;
+
+		for (int v_idx = 0; v_idx < alldiff_vars.size(); v_idx++)
+		{
+			int vid = alldiff_vars[v_idx];
+			if (a.inst_vars[vid].value == InstVar::UNASSIGNED)
+			{
+				Domain& dom = a.current_domains[vid];
+				a.EnsureSavedDomain(vid, dom);
+				dom.Exclude(val);
+
+				if (dom.values.empty())
+				{
+					// Domain wipe out
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
 	void Domain::Intersect(int val)
