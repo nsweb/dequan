@@ -136,7 +136,7 @@ bool SudokuTest()
         {
             alldiff_vars.push_back(vars[row_idx * num_row + col_idx]);
         }
-        csp.AddAllDifferentConstraint(alldiff_vars);
+        csp.AddConstraint(fcheck::AllDifferentConstraint(alldiff_vars));
     }
     for (int col_idx = 0; col_idx < num_row; col_idx++)
     {
@@ -145,7 +145,7 @@ bool SudokuTest()
         {
             alldiff_vars.push_back(vars[row_idx * num_row + col_idx]);
         }
-        csp.AddAllDifferentConstraint(alldiff_vars);
+        csp.AddConstraint(fcheck::AllDifferentConstraint(alldiff_vars));
     }
     csp.FinalizeModel();
 
@@ -190,5 +190,4 @@ int main()
 {
     NQueensTest(8);
     SudokuTest();
-
 }

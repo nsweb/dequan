@@ -24,14 +24,26 @@
 */
 
 #ifdef FCHECK_USE_STDVECTOR
-#include <vector>
+	#include <vector>
+	#include <algorithm>
+
+	#define FCHECK_Array_Size(a)				a.size()
+	#define FCHECK_Array_PushBack(a, val)		a.push_back(val)
+	#define FCHECK_Array_Clear(a)				a.clear()
+	#define FCHECK_Array_Resize(a, s)			a.resize(s)
+	#define FCHECK_Array_Reserve(a, s)			a.reserve(s)
+	#define FCHECK_Array_Back(a)				a.back()
+	#define FCHECK_Array_PopBack(a)				a.pop_back()
+	#define FCHECK_Array_Insert(a, idx, val)	a.insert(a.begin() + idx, val)
+	#define FCHECK_Array_Erase(a, first, last)	a.erase(a.begin() + (first), a.begin() + (last));
+	#define FCHECK_Array_Sort(a, lambda)		std::sort(a.begin(), a.end(), lambda)
 #endif
 
 /**/
 namespace fcheck
 {
 #ifdef FCHECK_USE_STDVECTOR
-	template<class T>
+	template<typename T>
 	using Array = std::vector<T>;
 #endif
 
@@ -62,6 +74,7 @@ namespace fcheck
 	struct Domain
 	{
 		Domain() = default;
+		int Size() const;
 		void Intersect(int val);
 		void Intersect(int val0, int val1);
 		void IntersectRange(int min, int max);
@@ -219,7 +232,7 @@ namespace fcheck
 		int min, max;
 	};
 
-	/** Constraint of the form : v0 == v1 */
+	/** Add an all different constraints to a bunch of variables. */
 	struct AllDifferentConstraint : public Constraint
 	{
 		AllDifferentConstraint(const Array<VarId>& vars) : alldiff_vars(vars)
@@ -277,6 +290,8 @@ namespace fcheck
 		Array<Domain> current_domains;
 		/** Backed up domains, used to restore domains if the searching algo needs to backtrack */
 		Array<SavedDomainStep> saved_domains;
+		/** Order in which variables will be processed for assignments */
+		Array<VarId> assign_order;
 
 #ifdef FCHECK_WITH_STATS
 		Stats stats;
@@ -304,8 +319,6 @@ namespace fcheck
 		/** Add a new constraint derived from the Constraint class */
 		template <class T>
 		void AddConstraint(const T& con);
-		/** Add an all different constraints to a bunch of variables. Note that all variables must have the same initial domain. */
-		void AddAllDifferentConstraint(const Array<VarId>& var_ids);
 		/** You need to call FinalizeModel() once all var and constraints have been added. */
 		void FinalizeModel();
 		/** Recursive method to solve the CSP. */
@@ -333,16 +346,37 @@ namespace fcheck
 	{
 		assigned_var_count = 0;
 
-		inst_vars.clear();
-		inst_vars.resize(csp.domains.size());
+		FCHECK_Array_Clear(inst_vars);
+		FCHECK_Array_Resize(inst_vars, FCHECK_Array_Size(csp.vars));
 
 		current_domains = csp.domains;
-		saved_domains.clear();
+		FCHECK_Array_Clear(saved_domains);
+		FCHECK_Array_Reserve(saved_domains, FCHECK_Array_Size(csp.vars));
+
+		// Compute order of assignements, smaller domains go first (especially constant variables)
+		FCHECK_Array_Clear(assign_order);
+		FCHECK_Array_Resize(assign_order, FCHECK_Array_Size(csp.vars));
+		for (int d_idx = 0; d_idx < FCHECK_Array_Size(assign_order); d_idx++)
+		{
+			assign_order[d_idx] = d_idx;
+		}
+
+		FCHECK_Array_Sort(assign_order,
+			[this](const VarId& a, const VarId& b) -> bool
+			{
+				int sa = current_domains[a].Size();
+				int sb = current_domains[b].Size();
+				if (sa == sb)
+				{
+					return a < b;
+				}
+				return sa < sb;
+			});
 	}
 
 	bool Assignment::IsComplete()
 	{
-		return assigned_var_count == inst_vars.size();
+		return assigned_var_count == FCHECK_Array_Size(inst_vars);
 	}
 
 	const Domain& Assignment::GetCurrentDomain(VarId vid) const
@@ -356,9 +390,7 @@ namespace fcheck
 
 	VarId Assignment::NextUnassignedVar()
 	{
-		// Since variables are instanced in the order of the array, the next unassigned var is necessarily
-		// the number of currently assigned vars.
-		return (VarId)assigned_var_count;
+		return assign_order[assigned_var_count];
 	}
 
 	void Assignment::AssignVar(VarId vid, int val)
@@ -378,8 +410,8 @@ namespace fcheck
 
 	void Assignment::RestoreSavedDomainStep()
 	{
-		SavedDomainStep& domain_step = saved_domains.back();
-		for (int d_idx = 0; d_idx < domain_step.domains.size(); d_idx++)
+		SavedDomainStep& domain_step = FCHECK_Array_Back(saved_domains);
+		for (int d_idx = 0; d_idx < FCHECK_Array_Size(domain_step.domains); d_idx++)
 		{
 			VarId vid = domain_step.domains[d_idx].var_id;
 			current_domains[vid].type = domain_step.domains[d_idx].type;
@@ -389,21 +421,22 @@ namespace fcheck
 
 	void Assignment::EnsureSavedDomain(VarId vid, const Domain& dom)
 	{
-		SavedDomainStep& domain_step = saved_domains.back();
-		for (int d_idx = 0; d_idx < domain_step.domains.size(); d_idx++)
+		SavedDomainStep& domain_step = FCHECK_Array_Back(saved_domains);
+		for (int d_idx = 0; d_idx < FCHECK_Array_Size(domain_step.domains); d_idx++)
 		{
 			if (domain_step.domains[d_idx].var_id == vid)
 				return;
 		}
-		domain_step.domains.push_back(SavedDomain{ vid, dom.type, dom.values });
+		SavedDomain new_dom{ vid, dom.type, dom.values };
+		FCHECK_Array_PushBack(domain_step.domains, std::move(new_dom));
 	}
 
 	VarId CSP::AddIntVar(const char* name_id, const Domain& domain)
 	{
-		Var new_var = { (VarId)vars.size(), {} };
-		vars.push_back(new_var);
-		domains.push_back(domain);
-		var_names.push_back(name_id);
+		Var new_var = { (VarId)FCHECK_Array_Size(vars), {} };
+		FCHECK_Array_PushBack(vars, new_var);
+		FCHECK_Array_PushBack(domains, domain);
+		FCHECK_Array_PushBack(var_names, name_id);
 
 		return new_var.var_id;
 	}
@@ -427,17 +460,13 @@ namespace fcheck
 	{
 		GenericConstraint gen_con;
 		new(gen_con.get()) T(con);
-		constraints.push_back(std::move(gen_con));
-	}
-	void CSP::AddAllDifferentConstraint(const Array<VarId>& var_ids)
-	{
-		AddConstraint(AllDifferentConstraint(var_ids));
+		FCHECK_Array_PushBack(constraints, std::move(gen_con));
 	}
 	void CSP::FinalizeModel()
 	{
 		// Once we know that the constraints array won't change (and won't be reallocated),
 		// we can link the constraint adresses with the variables.
-		for (int c_idx = 0; c_idx < constraints.size(); c_idx++)
+		for (int c_idx = 0; c_idx < FCHECK_Array_Size(constraints); c_idx++)
 		{
 			constraints[c_idx]->LinkVars(vars);
 		}
@@ -446,10 +475,12 @@ namespace fcheck
 	bool CSP::ForwardCheckingStep(Assignment& a) const
 	{
 		if (a.IsComplete())
+		{
 			return true;
+		}
 
 		// Add a new saved domain step
-		a.saved_domains.push_back(SavedDomainStep());
+		FCHECK_Array_PushBack(a.saved_domains, std::move(SavedDomainStep()));
 
 		VarId vid = a.NextUnassignedVar();
 		const Domain& dom = a.GetCurrentDomain(vid);
@@ -461,7 +492,7 @@ namespace fcheck
 			if (a.ValidateVarConstraints(var))
 			{
 				bool success = true;
-				for (int c_idx = 0; success && c_idx < var.linked_constraints.size(); c_idx++)
+				for (int c_idx = 0; success && c_idx < FCHECK_Array_Size(var.linked_constraints); c_idx++)
 				{
 					// Restrict domain of other variables, by removing values that would violate linked constraints
 					success &= var.linked_constraints[c_idx]->AplyArcConsistency(a, var.var_id);
@@ -493,7 +524,7 @@ namespace fcheck
 		bool found_result = false;
 		if (dom.type == DomainType::Values)
 		{
-			for (int d_idx = 0; d_idx < dom.values.size() && !found_result; d_idx++)
+			for (int d_idx = 0; d_idx < FCHECK_Array_Size(dom.values) && !found_result; d_idx++)
 			{
 				int val = dom.values[d_idx];
 				found_result = LambdaStep(val);
@@ -501,7 +532,7 @@ namespace fcheck
 		}
 		else
 		{
-			for (int r_idx = 0; r_idx < dom.values.size(); r_idx += 2)
+			for (int r_idx = 0; r_idx < FCHECK_Array_Size(dom.values); r_idx += 2)
 			{
 				int min = dom.values[r_idx];
 				int max = dom.values[r_idx + 1];
@@ -516,13 +547,13 @@ namespace fcheck
 			return true;
 		}
 
-		a.saved_domains.pop_back();
+		FCHECK_Array_PopBack(a.saved_domains);
 		return false;
 	}
 
 	bool Assignment::ValidateVarConstraints(const Var& var) /*const*/
 	{
-		for (int c_idx = 0; c_idx < var.linked_constraints.size(); c_idx++)
+		for (int c_idx = 0; c_idx < FCHECK_Array_Size(var.linked_constraints); c_idx++)
 		{
 #ifdef FCHECK_WITH_STATS
 			stats.validated_constraints++;
@@ -537,8 +568,8 @@ namespace fcheck
 	}
 	void OpConstraint::LinkVars(Array<Var>& vars)
 	{
-		vars[v0].linked_constraints.push_back(this);
-		vars[v1].linked_constraints.push_back(this);
+		FCHECK_Array_PushBack(vars[v0].linked_constraints, this);
+		FCHECK_Array_PushBack(vars[v1].linked_constraints, this);
 	}
 	Constraint::Eval OpConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
@@ -622,8 +653,8 @@ namespace fcheck
 	}
 	void EqualityConstraint::LinkVars(Array<Var>& vars)
 	{
-		vars[v0].linked_constraints.push_back(this);
-		vars[v1].linked_constraints.push_back(this);
+		FCHECK_Array_PushBack(vars[v0].linked_constraints, this);
+		FCHECK_Array_PushBack(vars[v1].linked_constraints, this);
 	}
 	Constraint::Eval EqualityConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
@@ -671,9 +702,9 @@ namespace fcheck
 	}
 	void OrEqualityConstraint::LinkVars(Array<Var>& vars)
 	{
-		vars[v0].linked_constraints.push_back(this);
-		vars[v1].linked_constraints.push_back(this);
-		vars[v2].linked_constraints.push_back(this);
+		FCHECK_Array_PushBack(vars[v0].linked_constraints, this);
+		FCHECK_Array_PushBack(vars[v1].linked_constraints, this);
+		FCHECK_Array_PushBack(vars[v2].linked_constraints, this);
 	}
 	Constraint::Eval OrEqualityConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
@@ -715,10 +746,10 @@ namespace fcheck
 	}
 	void CombinedEqualityConstraint::LinkVars(Array<Var>& vars)
 	{
-		vars[v0].linked_constraints.push_back(this);
-		vars[v1].linked_constraints.push_back(this);
-		vars[v2].linked_constraints.push_back(this);
-		vars[v3].linked_constraints.push_back(this);
+		FCHECK_Array_PushBack(vars[v0].linked_constraints, this);
+		FCHECK_Array_PushBack(vars[v1].linked_constraints, this);
+		FCHECK_Array_PushBack(vars[v2].linked_constraints, this);
+		FCHECK_Array_PushBack(vars[v3].linked_constraints, this);
 	}
 	Constraint::Eval CombinedEqualityConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
@@ -766,8 +797,8 @@ namespace fcheck
 	}
 	void OrRangeConstraint::LinkVars(Array<Var>& vars)
 	{
-		vars[v0].linked_constraints.push_back(this);
-		vars[v1].linked_constraints.push_back(this);
+		FCHECK_Array_PushBack(vars[v0].linked_constraints, this);
+		FCHECK_Array_PushBack(vars[v1].linked_constraints, this);
 	}
 	Constraint::Eval OrRangeConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
@@ -822,15 +853,15 @@ namespace fcheck
 	}
 	void AllDifferentConstraint::LinkVars(Array<Var>& vars)
 	{
-		for (int v_idx = 0; v_idx < alldiff_vars.size(); v_idx++)
+		for (int v_idx = 0; v_idx < FCHECK_Array_Size(alldiff_vars); v_idx++)
 		{
-			vars[alldiff_vars[v_idx]].linked_constraints.push_back(this);
+			FCHECK_Array_PushBack(vars[alldiff_vars[v_idx]].linked_constraints, this);
 		}
 	}
 	Constraint::Eval AllDifferentConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vids)
 	{
 		int var_val = inst_vars[last_assigned_vids].value;
-		for (int v_idx = 0; v_idx < alldiff_vars.size(); v_idx++)
+		for (int v_idx = 0; v_idx < FCHECK_Array_Size(alldiff_vars); v_idx++)
 		{
 			if (inst_vars[alldiff_vars[v_idx]].value == var_val && alldiff_vars[v_idx] != last_assigned_vids)
 			{
@@ -846,8 +877,9 @@ namespace fcheck
 		a.stats.applied_arcs++;
 #endif
 		int val = a.inst_vars[last_assigned_vid].value;
-
-		for (int v_idx = 0; v_idx < alldiff_vars.size(); v_idx++)
+		//int num_unassigned = 0;
+		//int num_values = 0;
+		for (int v_idx = 0; v_idx < FCHECK_Array_Size(alldiff_vars); v_idx++)
 		{
 			int vid = alldiff_vars[v_idx];
 			if (a.inst_vars[vid].value == InstVar::UNASSIGNED)
@@ -861,35 +893,60 @@ namespace fcheck
 					// Domain wipe out
 					return false;
 				}
+
+				//num_unassigned++;
+				//int dom_size = dom.Size();
+				//num_values = num_values > dom_size ? num_values : dom_size;
 			}
+
+			//if (num_unassigned > num_values)
+			//{
+			//	return false;
+			//}
 		}
 
 		return true;
 	}
 
+	int Domain::Size() const
+	{
+		if (type == DomainType::Values)
+		{
+			return (int)FCHECK_Array_Size(values);
+		}
+		else
+		{
+			int size = 0;
+			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); r_idx += 2)
+			{
+				size += values[r_idx + 1] - values[r_idx];
+			}
+			return size;
+		}
+	}
 	void Domain::Intersect(int val)
 	{
 		if (type == DomainType::Values)
 		{
-			for (int d_idx = 0; d_idx < values.size(); d_idx++)
+			for (int d_idx = 0; d_idx < FCHECK_Array_Size(values); d_idx++)
 			{
 				if (val == values[d_idx])
 				{
-					values.clear();
-					values.push_back(val);
+					FCHECK_Array_Clear(values);
+					FCHECK_Array_PushBack(values, val);
 					break;
 				}
 			}
 		}
 		else
 		{
-			for (int r_idx = 0; r_idx < values.size(); r_idx += 2)
+			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); r_idx += 2)
 			{
 				if (values[r_idx] <= val && val < values[r_idx + 1])
 				{
 					type = DomainType::Values;
-					values.clear();
-					values.push_back(val);
+					FCHECK_Array_Clear(values);
+					FCHECK_Array_PushBack(values, val);
 					break;
 				}
 			}
@@ -899,18 +956,18 @@ namespace fcheck
 	{
 		if (type == DomainType::Values)
 		{
-			for (int d_idx = 0; d_idx < values.size(); d_idx++)
+			for (int d_idx = 0; d_idx < FCHECK_Array_Size(values); d_idx++)
 			{
 				if (val == values[d_idx])
 				{
-					values.erase(values.begin() + d_idx);
+					FCHECK_Array_Erase(values, d_idx, d_idx + 1);
 					break;
 				}
 			}
 		}
 		else
 		{
-			for (int r_idx = 0; r_idx < values.size(); r_idx += 2)
+			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); r_idx += 2)
 			{
 				int min = values[r_idx];
 				int max = values[r_idx + 1];
@@ -918,7 +975,7 @@ namespace fcheck
 				{
 					if (max - min <= 1)
 					{
-						values.erase(values.begin() + r_idx, values.begin() + r_idx + 2);
+						FCHECK_Array_Erase(values, r_idx, r_idx + 2);
 					}
 					else
 					{
@@ -933,8 +990,8 @@ namespace fcheck
 						else
 						{
 							values[r_idx + 1] = val;
-							values.insert(values.begin() + (r_idx + 2), max);
-							values.insert(values.begin() + (r_idx + 2), val + 1);
+							FCHECK_Array_Insert(values, (r_idx + 2), max);
+							FCHECK_Array_Insert(values, (r_idx + 2), val + 1);
 						}
 					}
 					break;
@@ -947,7 +1004,7 @@ namespace fcheck
 		int write_idx = 0;
 		if (type == DomainType::Values)
 		{
-			for (int d_idx = 0; d_idx < values.size(); d_idx++)
+			for (int d_idx = 0; d_idx < FCHECK_Array_Size(values); d_idx++)
 			{
 				int val = values[d_idx];
 				if (val0 == val)
@@ -963,7 +1020,7 @@ namespace fcheck
 		else
 		{
 			type = DomainType::Values;
-			for (int r_idx = 0; r_idx < values.size(); r_idx += 2)
+			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); r_idx += 2)
 			{
 				int min = values[r_idx];
 				int max = values[r_idx + 1];
@@ -977,14 +1034,14 @@ namespace fcheck
 				}
 			}
 		}
-		values.erase(values.begin() + write_idx, values.end());
+		FCHECK_Array_Erase(values, write_idx, FCHECK_Array_Size(values));
 	}
 	void Domain::IntersectRange(int rmin, int rmax)
 	{
 		if (type == DomainType::Values)
 		{
 			int write_idx = 0;
-			for (int d_idx = 0; d_idx < values.size(); d_idx++)
+			for (int d_idx = 0; d_idx < FCHECK_Array_Size(values); d_idx++)
 			{
 				int val = values[d_idx];
 				if (rmin <= val && val < rmax)
@@ -992,11 +1049,11 @@ namespace fcheck
 					values[write_idx++] = val;
 				}
 			}
-			values.erase(values.begin() + write_idx, values.end());
+			FCHECK_Array_Erase(values, write_idx, FCHECK_Array_Size(values));
 		}
 		else
 		{
-			for (int r_idx = 0; r_idx < values.size(); )
+			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); )
 			{
 				int min = values[r_idx];
 				int max = values[r_idx + 1];
@@ -1010,7 +1067,7 @@ namespace fcheck
 				}
 				else
 				{
-					values.erase(values.begin() + r_idx, values.begin() + r_idx + 2);
+					FCHECK_Array_Erase(values, r_idx, r_idx + 2);
 				}
 			}
 		}
