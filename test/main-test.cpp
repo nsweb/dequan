@@ -26,7 +26,6 @@ bool NQueensTest(const int num_queen)
     std::cout << num_queen << "-queens test : ";
 
     fcheck::CSP csp;
-    //fcheck::Domain raw_dom;
     fcheck::Array<std::string> var_names;
     fcheck::Array<fcheck::VarId> qvars;
 
@@ -185,9 +184,58 @@ bool SudokuTest()
     return success;
 }
 
+bool OpInequalityTest()
+{
+    std::cout << "\n----------------------------\n";
+    std::cout << "OpInequality test : ";
+
+    fcheck::CSP csp;
+    fcheck::Array<fcheck::VarId> vars;
+
+    vars.resize(4);
+    vars[0] = csp.AddIntVar("", 0, 10);
+    vars[1] = csp.AddIntVar("", 0, 10);
+    vars[2] = csp.AddIntVar("", 6);
+    vars[3] = csp.AddIntVar("", 5);
+    csp.AddConstraint(fcheck::OpConstraint(vars[0], vars[2], fcheck::OpConstraint::Op::Inf, 0));
+    csp.AddConstraint(fcheck::OpConstraint(vars[0], vars[3], fcheck::OpConstraint::Op::SupEqual, 0));
+    csp.AddConstraint(fcheck::OpConstraint(vars[1], vars[2], fcheck::OpConstraint::Op::InfEqual, 0));
+    csp.AddConstraint(fcheck::OpConstraint(vars[1], vars[3], fcheck::OpConstraint::Op::Sup, 0));
+    csp.FinalizeModel();
+
+    fcheck::Assignment a;
+    a.Reset(csp);
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    bool success = csp.ForwardCheckingStep(a);
+
+    auto t2 = std::chrono::high_resolution_clock::now();
+
+    std::cout << (success ? "PASSED\n" : "FAILED\n");
+
+    if (success)
+    {
+        std::cout << "Var0 = " << a.GetInstVarValue(vars[0]) << "\n";
+        std::cout << "Var1 = " << a.GetInstVarValue(vars[1]) << "\n";
+    }
+
+    std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    std::cout << "\nForwardCheckingStep took " << time_span.count() << " seconds.\n";
+
+#ifdef FCHECK_WITH_STATS
+    std::cout << "\napplied_arcs: " << a.stats.applied_arcs;
+    std::cout << "\nassigned_vars: " << a.stats.assigned_vars;
+    std::cout << "\nvalidated_constraints: " << a.stats.validated_constraints;
+#endif
+
+    return success;
+}
+
 
 int main()
 {
+    OpInequalityTest();
     NQueensTest(8);
     SudokuTest();
 }
