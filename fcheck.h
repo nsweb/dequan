@@ -20,7 +20,10 @@
 
 /*
 	Please define FCHECK_IMPLEMENTATION before including this file in one C / C++ file to create the implementation.
-	C++ 11
+	Should be C++11 compatible.
+	FCHECK_USE_STDVECTOR : #define this to use std vectors, otherwise you need provide your own implementation of the Array macros
+	FCHECK_SET_CONSTRAINT_SIZE : #define this if you implement your own Constraint-derived classes and need more space than default (see MaxConstraint)
+	FCHECK_WITH_STATS : #define this to retrieve various stats about the search algorithm
 */
 
 #ifdef FCHECK_USE_STDVECTOR
@@ -46,7 +49,6 @@ namespace fcheck
 	template<typename T>
 	using Array = std::vector<T>;
 #endif
-
 	using VarId = int;
 	struct Var;
 	class Assignment;
@@ -54,7 +56,7 @@ namespace fcheck
 
 #ifdef FCHECK_WITH_STATS
 	/**
-	 * Various statistics for the searching algorithm.
+	 * Various statistics for the search algorithm.
 	 */
 	struct Stats
 	{
@@ -135,7 +137,6 @@ namespace fcheck
 			Passed,
 			Failed
 		};
-		static const int MAX_CONSTRAINT_SIZE = 32;
 
 		Constraint() = default;
 		virtual void LinkVars(Array<Var>& vars) = 0;
@@ -150,7 +151,17 @@ namespace fcheck
 	 */
 	struct GenericConstraint
 	{
-		char buffer[Constraint::MAX_CONSTRAINT_SIZE];
+#ifdef FCHECK_SET_CONSTRAINT_SIZE
+		static constexpr int MAX_CONSTRAINT_SIZE = FCHECK_SET_CONSTRAINT_SIZE;
+#else
+		struct MaxConstraint
+		{
+			virtual void A() {}
+			Array<int> v;
+		};
+		static constexpr int MAX_CONSTRAINT_SIZE = sizeof(MaxConstraint);
+#endif
+		char buffer[MAX_CONSTRAINT_SIZE];
 
 		Constraint* operator->()	{ return (Constraint*)buffer; }
 		Constraint* get()			{ return (Constraint*)buffer; }
@@ -171,8 +182,8 @@ namespace fcheck
 
 		OpConstraint(VarId _v0, VarId _v1, Op _op,int _offset) : v0(_v0), v1(_v1), op(_op), offset(_offset)
 		{
-			static_assert(sizeof(OpConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
-		};
+			static_assert(sizeof(OpConstraint) <= GenericConstraint::MAX_CONSTRAINT_SIZE, "");
+		}
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
 		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
@@ -187,8 +198,8 @@ namespace fcheck
 	{
 		EqualityConstraint(VarId _v0, VarId _v1) : v0(_v0), v1(_v1)
 		{
-			static_assert(sizeof(EqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
-		};
+			static_assert(sizeof(EqualityConstraint) <= GenericConstraint::MAX_CONSTRAINT_SIZE, "");
+		}
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
 		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
@@ -201,8 +212,8 @@ namespace fcheck
 	{
 		OrEqualityConstraint(VarId _v0, VarId _v1, VarId _v2) : v0(_v0), v1(_v1), v2(_v2)
 		{
-			static_assert(sizeof(OrEqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
-		};
+			static_assert(sizeof(OrEqualityConstraint) <= GenericConstraint::MAX_CONSTRAINT_SIZE, "");
+		}
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
 		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
@@ -215,7 +226,7 @@ namespace fcheck
 	{
 		CombinedEqualityConstraint(VarId _v0, VarId _v1, VarId _v2, VarId _v3) : v0(_v0), v1(_v1), v2(_v2), v3(_v3)
 		{
-			static_assert(sizeof(CombinedEqualityConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
+			static_assert(sizeof(CombinedEqualityConstraint) <= GenericConstraint::MAX_CONSTRAINT_SIZE, "");
 		};
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
@@ -229,8 +240,8 @@ namespace fcheck
 	{
 		OrRangeConstraint(VarId _v0, VarId _v1, int _min, int _max) : v0(_v0), v1(_v1), min(_min), max(_max)
 		{
-			static_assert(sizeof(OrRangeConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
-		};
+			static_assert(sizeof(OrRangeConstraint) <= GenericConstraint::MAX_CONSTRAINT_SIZE, "");
+		}
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
 		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
@@ -244,8 +255,8 @@ namespace fcheck
 	{
 		AllDifferentConstraint(const Array<VarId>& vars) : alldiff_vars(vars)
 		{
-			static_assert(sizeof(AllDifferentConstraint) <= Constraint::MAX_CONSTRAINT_SIZE, "");
-		};
+			static_assert(sizeof(AllDifferentConstraint) <= GenericConstraint::MAX_CONSTRAINT_SIZE, "");
+		}
 		virtual void LinkVars(Array<Var>& vars);
 		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid);
 		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid);
