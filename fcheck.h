@@ -139,6 +139,7 @@ namespace fcheck
 		};
 
 		Constraint() = default;
+		virtual ~Constraint() = default;
 		virtual void LinkVars(Array<Var>& vars) = 0;
 		virtual Eval Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid) = 0;
 		virtual bool AplyArcConsistency(Assignment& a, VarId last_assigned_vid) { return true; }
@@ -156,7 +157,7 @@ namespace fcheck
 #else
 		struct MaxConstraint
 		{
-			virtual void A() {}
+			virtual ~MaxConstraint() = default;
 			Array<int> v;
 		};
 		static constexpr int MAX_CONSTRAINT_SIZE = sizeof(MaxConstraint);
