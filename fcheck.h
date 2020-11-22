@@ -656,7 +656,7 @@ namespace fcheck
 				break;
 			};
 
-			if (dom.values.empty())
+			if (FCHECK_Array_Size(dom.values) == 0)
 			{
 				// Domain wipe out
 				return false;
@@ -713,7 +713,7 @@ namespace fcheck
 			a.EnsureSavedDomain(v0, dom);
 
 			dom.Intersect(oth_val);
-			if (dom.values.empty())
+			if (FCHECK_Array_Size(dom.values) == 0)
 			{
 				// Domain wipe out
 				return false;
@@ -771,7 +771,7 @@ namespace fcheck
 
 			dom.Intersect(v1_val, v2_val);
 
-			if (dom.values.empty())
+			if (FCHECK_Array_Size(dom.values) == 0)
 			{
 				// Domain wipe out
 				return false;
@@ -822,7 +822,7 @@ namespace fcheck
 			int comb_val = v1_val + v2_val - v3_val;
 			dom.Intersect(comb_val);
 
-			if (dom.values.empty())
+			if (FCHECK_Array_Size(dom.values) == 0)
 			{
 				// Domain wipe out
 				return false;
@@ -860,7 +860,7 @@ namespace fcheck
 
 			dom.IntersectRange(min, max);
 
-			if (dom.values.empty())
+			if (FCHECK_Array_Size(dom.values) == 0)
 			{
 				// Domain wipe out
 				return false;
@@ -922,7 +922,7 @@ namespace fcheck
 				a.EnsureSavedDomain(vid, dom);
 				dom.Exclude(val);
 
-				if (dom.values.empty())
+				if (FCHECK_Array_Size(dom.values) == 0)
 				{
 					// Domain wipe out
 					return false;
