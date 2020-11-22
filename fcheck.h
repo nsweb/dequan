@@ -327,13 +327,13 @@ namespace fcheck
 		CSP() = default;
 
 		/** Add an integer variable that can take any value in range [min, max). Including min but excluding max. */
-		VarId AddIntVar(const char* name_id, int min_val, int max_val);
+		VarId AddIntVar(int min_val, int max_val);
 		/** Add an integer variable with a custom domain. */
-		VarId AddIntVar(const char* name_id, const Domain& domain);
+		VarId AddIntVar(const Domain& domain);
 		/** Add an integer variable with a fixed value. */
-		VarId AddIntVar(const char* name_id, int val);
+		VarId AddFixedVar(int val);
 		/** Add a boolean variable. That is, internally, an integer that can either be 0 or 1. */
-		VarId AddBoolVar(const char* name_id);
+		VarId AddBoolVar();
 		/** Add a new constraint derived from the Constraint class */
 		template <class T>
 		void AddConstraint(const T& con);
@@ -348,8 +348,6 @@ namespace fcheck
 		Array<GenericConstraint> constraints;
 		/** Domains of the variables, stored at the same index at the corresponding var */
 		Array<Domain> domains;
-		/** Names of the variable, stored as a convenience for the outside world */
-		Array<const char*> var_names;
 	};
 
 }; /*namespace fcheck*/
@@ -449,29 +447,28 @@ namespace fcheck
 		FCHECK_Array_PushBack(domain_step.domains, std::move(new_dom));
 	}
 
-	VarId CSP::AddIntVar(const char* name_id, const Domain& domain)
+	VarId CSP::AddIntVar(const Domain& domain)
 	{
 		Var new_var = { (VarId)FCHECK_Array_Size(vars), {} };
 		FCHECK_Array_PushBack(vars, new_var);
 		FCHECK_Array_PushBack(domains, domain);
-		FCHECK_Array_PushBack(var_names, name_id);
 
 		return new_var.var_id;
 	}
-	VarId CSP::AddIntVar(const char* name_id, int min_val, int max_val)
+	VarId CSP::AddIntVar(int min_val, int max_val)
 	{
 		Domain new_dom = { DomainType::Ranges, {min_val, max_val} };
-		return AddIntVar(name_id, new_dom);
+		return AddIntVar(new_dom);
 	}
-	VarId CSP::AddIntVar(const char* name_id, int val)
+	VarId CSP::AddFixedVar(int val)
 	{
 		Domain new_dom = { DomainType::Values, {val} };
-		return AddIntVar(name_id, new_dom);
+		return AddIntVar(new_dom);
 	}
-	VarId CSP::AddBoolVar(const char* name_id)
+	VarId CSP::AddBoolVar()
 	{
 		Domain new_dom = { DomainType::Values, {0, 1} };
-		return AddIntVar(name_id, new_dom);
+		return AddIntVar(new_dom);
 	}
 	template <class T>
 	void CSP::AddConstraint(const T& con)

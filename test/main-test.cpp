@@ -1,23 +1,27 @@
 
 #include <iostream>
-#include <string>
 #include <chrono>
 #include <ratio>
 
 #define FCHECK_USE_STDVECTOR
 #define FCHECK_WITH_STATS
 #define FCHECK_IMPLEMENTATION
+//#define FCHECK_SET_CONSTRAINT_SIZE 64
 #include "../fcheck.h"
 
+//struct MyNewConstraint : public fcheck::Constraint
+//{
+//    MyNewConstraint()
+//    {
+//        static_assert(sizeof(MyNewConstraint) <= FCHECK_SET_CONSTRAINT_SIZE, "");
+//    }
+//    virtual void LinkVars(fcheck::Array<fcheck::Var>& vars) {}
+//    virtual Eval Evaluate(const fcheck::Array<fcheck::InstVar>& inst_vars, fcheck::VarId last_assigned_vid) { return fcheck::Constraint::Eval::Passed;  }
+//    virtual bool AplyArcConsistency(fcheck::Assignment& a, fcheck::VarId last_assigned_vid) { return true;  }
+//
+//    fcheck::Array<int> a0, a1;
+//};
 
-template<typename ... Args>
-std::string string_format(const char* format, Args ... args)
-{
-    size_t size = snprintf(nullptr, 0, format, args ...) + 1; // Extra space for '\0'
-    std::unique_ptr<char[]> buf(new char[size]);
-    snprintf(buf.get(), size, format, args ...);
-    return std::string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
-}
 
 // https://en.wikipedia.org/wiki/Eight_queens_puzzle
 bool NQueensTest(const int num_queen)
@@ -26,20 +30,12 @@ bool NQueensTest(const int num_queen)
     std::cout << num_queen << "-queens test : ";
 
     fcheck::CSP csp;
-    fcheck::Array<std::string> var_names;
     fcheck::Array<fcheck::VarId> qvars;
-
-    var_names.resize(num_queen);
     qvars.resize(num_queen);
 
     for (int i = 0; i < num_queen; i++)
     {
-        var_names[i] = string_format("q%d", i);
-    }
-
-    for (int i = 0; i < num_queen; i++)
-    {
-        qvars[i] = csp.AddIntVar(var_names[i].c_str(), 0, num_queen);
+        qvars[i] = csp.AddIntVar(0, num_queen);
     }
 
     for (int i = 0; i < num_queen; i++)
@@ -121,9 +117,13 @@ bool SudokuTest()
         for (int col_idx = 0; col_idx < num_row; col_idx++)
         {
             if (sudoku_init[row_idx * num_row + col_idx] == _)
-                vars[row_idx * num_row + col_idx] = csp.AddIntVar("", 1, num_row+1);
+            {
+                vars[row_idx * num_row + col_idx] = csp.AddIntVar(1, num_row + 1);
+            }
             else
-                vars[row_idx * num_row + col_idx] = csp.AddIntVar("", sudoku_init[row_idx * num_row + col_idx]);
+            {
+                vars[row_idx * num_row + col_idx] = csp.AddFixedVar(sudoku_init[row_idx * num_row + col_idx]);
+            }
         }
     }
 
@@ -193,10 +193,10 @@ bool OpInequalityTest()
     fcheck::Array<fcheck::VarId> vars;
 
     vars.resize(4);
-    vars[0] = csp.AddIntVar("", 0, 10);
-    vars[1] = csp.AddIntVar("", 0, 10);
-    vars[2] = csp.AddIntVar("", 6);
-    vars[3] = csp.AddIntVar("", 5);
+    vars[0] = csp.AddIntVar(0, 10);
+    vars[1] = csp.AddIntVar(0, 10);
+    vars[2] = csp.AddFixedVar(6);
+    vars[3] = csp.AddFixedVar(5);
     csp.AddConstraint(fcheck::OpConstraint(vars[0], vars[2], fcheck::OpConstraint::Op::Inf, 0));
     csp.AddConstraint(fcheck::OpConstraint(vars[0], vars[3], fcheck::OpConstraint::Op::SupEqual, 0));
     csp.AddConstraint(fcheck::OpConstraint(vars[1], vars[2], fcheck::OpConstraint::Op::InfEqual, 0));
