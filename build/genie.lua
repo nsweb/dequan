@@ -15,18 +15,18 @@ function SetTarget( _configuration, _platform )
 		objdir( obj )
 end
 
-solution "fcheck_test"
+solution "dequan_test"
 	configurations { "Debug", "Release" }
 
 	platforms { "x64", "native" }
  
-	project "fcheck_test"
+	project "dequan_test"
 		kind "ConsoleApp"
 		language "C++"
 		
 		files
 		{
-			path.join(PROJ_DIR, "fcheck.h"),
+			path.join(PROJ_DIR, "dequan.h"),
 			path.join(PROJ_DIR, "test/*.h"),
 			path.join(PROJ_DIR, "test/*.cpp"),
 		}

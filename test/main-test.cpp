@@ -3,23 +3,23 @@
 #include <chrono>
 #include <ratio>
 
-#define FCHECK_USE_STDVECTOR
-#define FCHECK_WITH_STATS
-#define FCHECK_IMPLEMENTATION
-//#define FCHECK_SET_CONSTRAINT_SIZE 64
-#include "../fcheck.h"
+#define DEQUAN_USE_STDVECTOR
+#define DEQUAN_WITH_STATS
+#define DEQUAN_IMPLEMENTATION
+//#define DEQUAN_SET_CONSTRAINT_SIZE 64
+#include "../dequan.h"
 
-//struct MyNewConstraint : public fcheck::Constraint
+//struct MyNewConstraint : public dequan::Constraint
 //{
 //    MyNewConstraint()
 //    {
-//        static_assert(sizeof(MyNewConstraint) <= FCHECK_SET_CONSTRAINT_SIZE, "");
+//        static_assert(sizeof(MyNewConstraint) <= DEQUAN_SET_CONSTRAINT_SIZE, "");
 //    }
-//    virtual void LinkVars(fcheck::Array<fcheck::Var>& vars) {}
-//    virtual Eval Evaluate(const fcheck::Array<fcheck::InstVar>& inst_vars, fcheck::VarId last_assigned_vid) { return fcheck::Constraint::Eval::Passed;  }
-//    virtual bool AplyArcConsistency(fcheck::Assignment& a, fcheck::VarId last_assigned_vid) { return true;  }
+//    virtual void LinkVars(dequan::Array<dequan::Var>& vars) {}
+//    virtual Eval Evaluate(const dequan::Array<dequan::InstVar>& inst_vars, dequan::VarId last_assigned_vid) { return dequan::Constraint::Eval::Passed;  }
+//    virtual bool AplyArcConsistency(dequan::Assignment& a, dequan::VarId last_assigned_vid) { return true;  }
 //
-//    fcheck::Array<int> a0, a1;
+//    dequan::Array<int> a0, a1;
 //};
 
 
@@ -29,8 +29,8 @@ bool NQueensTest(const int num_queen)
     std::cout << "\n----------------------------\n";
     std::cout << num_queen << "-queens test : ";
 
-    fcheck::CSP csp;
-    fcheck::Array<fcheck::VarId> qvars;
+    dequan::CSP csp;
+    dequan::Array<dequan::VarId> qvars;
     qvars.resize(num_queen);
 
     for (int i = 0; i < num_queen; i++)
@@ -42,14 +42,14 @@ bool NQueensTest(const int num_queen)
     {
         for (int j = i + 1; j < num_queen; j++)
         {
-            csp.AddConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, 0));
-            csp.AddConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, j - i));
-            csp.AddConstraint(fcheck::OpConstraint(qvars[i], qvars[j], fcheck::OpConstraint::Op::NotEqual, i - j));
+            csp.AddConstraint(dequan::OpConstraint(qvars[i], qvars[j], dequan::OpConstraint::Op::NotEqual, 0));
+            csp.AddConstraint(dequan::OpConstraint(qvars[i], qvars[j], dequan::OpConstraint::Op::NotEqual, j - i));
+            csp.AddConstraint(dequan::OpConstraint(qvars[i], qvars[j], dequan::OpConstraint::Op::NotEqual, i - j));
         }
     }
     csp.FinalizeModel();
 
-    fcheck::Assignment a;
+    dequan::Assignment a;
     a.Reset(csp);
 
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -76,7 +76,7 @@ bool NQueensTest(const int num_queen)
     std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     std::cout << "\nForwardCheckingStep took " << time_span.count() << " seconds.\n";
 
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
     std::cout << "\napplied_arcs: " << a.stats.applied_arcs;
     std::cout << "\nassigned_vars: " << a.stats.assigned_vars;
     std::cout << "\nvalidated_constraints: " << a.stats.validated_constraints;
@@ -107,8 +107,8 @@ bool SudokuTest()
     std::cout << "\n----------------------------\n";
     std::cout << num_row << "-sudoku test : ";
 
-    fcheck::CSP csp;
-    fcheck::Array<fcheck::VarId> vars;
+    dequan::CSP csp;
+    dequan::Array<dequan::VarId> vars;
 
     vars.resize(num_row * num_row);
 
@@ -127,7 +127,7 @@ bool SudokuTest()
         }
     }
 
-    fcheck::Array<fcheck::VarId> alldiff_vars;
+    dequan::Array<dequan::VarId> alldiff_vars;
     for (int row_idx = 0; row_idx < num_row; row_idx++)
     {
         alldiff_vars.clear();
@@ -135,7 +135,7 @@ bool SudokuTest()
         {
             alldiff_vars.push_back(vars[row_idx * num_row + col_idx]);
         }
-        csp.AddConstraint(fcheck::AllDifferentConstraint(alldiff_vars));
+        csp.AddConstraint(dequan::AllDifferentConstraint(alldiff_vars));
     }
     for (int col_idx = 0; col_idx < num_row; col_idx++)
     {
@@ -144,11 +144,11 @@ bool SudokuTest()
         {
             alldiff_vars.push_back(vars[row_idx * num_row + col_idx]);
         }
-        csp.AddConstraint(fcheck::AllDifferentConstraint(alldiff_vars));
+        csp.AddConstraint(dequan::AllDifferentConstraint(alldiff_vars));
     }
     csp.FinalizeModel();
 
-    fcheck::Assignment a;
+    dequan::Assignment a;
     a.Reset(csp);
 
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -175,7 +175,7 @@ bool SudokuTest()
     std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     std::cout << "\nForwardCheckingStep took " << time_span.count() << " seconds.\n";
 
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
     std::cout << "\napplied_arcs: " << a.stats.applied_arcs;
     std::cout << "\nassigned_vars: " << a.stats.assigned_vars;
     std::cout << "\nvalidated_constraints: " << a.stats.validated_constraints;
@@ -189,21 +189,21 @@ bool OpInequalityTest()
     std::cout << "\n----------------------------\n";
     std::cout << "OpInequality test : ";
 
-    fcheck::CSP csp;
-    fcheck::Array<fcheck::VarId> vars;
+    dequan::CSP csp;
+    dequan::Array<dequan::VarId> vars;
 
     vars.resize(4);
     vars[0] = csp.AddIntVar(0, 10);
     vars[1] = csp.AddIntVar(0, 10);
     vars[2] = csp.AddFixedVar(6);
     vars[3] = csp.AddFixedVar(5);
-    csp.AddConstraint(fcheck::OpConstraint(vars[0], vars[2], fcheck::OpConstraint::Op::Inf, 0));
-    csp.AddConstraint(fcheck::OpConstraint(vars[0], vars[3], fcheck::OpConstraint::Op::SupEqual, 0));
-    csp.AddConstraint(fcheck::OpConstraint(vars[1], vars[2], fcheck::OpConstraint::Op::InfEqual, 0));
-    csp.AddConstraint(fcheck::OpConstraint(vars[1], vars[3], fcheck::OpConstraint::Op::Sup, 0));
+    csp.AddConstraint(dequan::OpConstraint(vars[0], vars[2], dequan::OpConstraint::Op::Inf, 0));
+    csp.AddConstraint(dequan::OpConstraint(vars[0], vars[3], dequan::OpConstraint::Op::SupEqual, 0));
+    csp.AddConstraint(dequan::OpConstraint(vars[1], vars[2], dequan::OpConstraint::Op::InfEqual, 0));
+    csp.AddConstraint(dequan::OpConstraint(vars[1], vars[3], dequan::OpConstraint::Op::Sup, 0));
     csp.FinalizeModel();
 
-    fcheck::Assignment a;
+    dequan::Assignment a;
     a.Reset(csp);
 
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -223,7 +223,7 @@ bool OpInequalityTest()
     std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     std::cout << "\nForwardCheckingStep took " << time_span.count() << " seconds.\n";
 
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
     std::cout << "\napplied_arcs: " << a.stats.applied_arcs;
     std::cout << "\nassigned_vars: " << a.stats.assigned_vars;
     std::cout << "\nvalidated_constraints: " << a.stats.validated_constraints;

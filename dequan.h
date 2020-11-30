@@ -19,33 +19,33 @@
 */
 
 /*
-	Please define FCHECK_IMPLEMENTATION before including this file in one C / C++ file to create the implementation.
+	Please define DEQUAN_IMPLEMENTATION before including this file in one C / C++ file to create the implementation.
 	Should be C++11 compatible.
-	FCHECK_USE_STDVECTOR : #define this to use std vectors, otherwise you need provide your own implementation of the Array macros
-	FCHECK_SET_CONSTRAINT_SIZE : #define this if you implement your own Constraint-derived classes and need more space than default (see MaxConstraint)
-	FCHECK_WITH_STATS : #define this to retrieve various stats about the search algorithm
+	DEQUAN_USE_STDVECTOR : #define this to use std vectors, otherwise you need provide your own implementation of the Array macros
+	DEQUAN_SET_CONSTRAINT_SIZE : #define this if you implement your own Constraint-derived classes and need more space than default (see MaxConstraint)
+	DEQUAN_WITH_STATS : #define this to retrieve various stats about the search algorithm
 */
 
-#ifdef FCHECK_USE_STDVECTOR
+#ifdef DEQUAN_USE_STDVECTOR
 	#include <vector>
 	#include <algorithm>
 
-	#define FCHECK_Array_Size(a)				a.size()
-	#define FCHECK_Array_PushBack(a, val)		a.push_back(val)
-	#define FCHECK_Array_Clear(a)				a.clear()
-	#define FCHECK_Array_Resize(a, s)			a.resize(s)
-	#define FCHECK_Array_Reserve(a, s)			a.reserve(s)
-	#define FCHECK_Array_Back(a)				a.back()
-	#define FCHECK_Array_PopBack(a)				a.pop_back()
-	#define FCHECK_Array_Insert(a, idx, val)	a.insert(a.begin() + idx, val)
-	#define FCHECK_Array_Erase(a, first, last)	a.erase(a.begin() + (first), a.begin() + (last));
-	#define FCHECK_Array_Sort(a, lambda)		std::sort(a.begin(), a.end(), lambda)
+	#define DEQUAN_Array_Size(a)				a.size()
+	#define DEQUAN_Array_PushBack(a, val)		a.push_back(val)
+	#define DEQUAN_Array_Clear(a)				a.clear()
+	#define DEQUAN_Array_Resize(a, s)			a.resize(s)
+	#define DEQUAN_Array_Reserve(a, s)			a.reserve(s)
+	#define DEQUAN_Array_Back(a)				a.back()
+	#define DEQUAN_Array_PopBack(a)				a.pop_back()
+	#define DEQUAN_Array_Insert(a, idx, val)	a.insert(a.begin() + idx, val)
+	#define DEQUAN_Array_Erase(a, first, last)	a.erase(a.begin() + (first), a.begin() + (last));
+	#define DEQUAN_Array_Sort(a, lambda)		std::sort(a.begin(), a.end(), lambda)
 #endif
 
 /**/
-namespace fcheck
+namespace dequan
 {
-#ifdef FCHECK_USE_STDVECTOR
+#ifdef DEQUAN_USE_STDVECTOR
 	template<typename T>
 	using Array = std::vector<T>;
 #endif
@@ -54,7 +54,7 @@ namespace fcheck
 	class Assignment;
 	class CSP;
 
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
 	/**
 	 * Various statistics for the search algorithm.
 	 */
@@ -152,8 +152,8 @@ namespace fcheck
 	 */
 	struct GenericConstraint
 	{
-#ifdef FCHECK_SET_CONSTRAINT_SIZE
-		static constexpr int MAX_CONSTRAINT_SIZE = FCHECK_SET_CONSTRAINT_SIZE;
+#ifdef DEQUAN_SET_CONSTRAINT_SIZE
+		static constexpr int MAX_CONSTRAINT_SIZE = DEQUAN_SET_CONSTRAINT_SIZE;
 #else
 		struct MaxConstraint
 		{
@@ -312,7 +312,7 @@ namespace fcheck
 		/** Order in which variables will be processed for assignments */
 		Array<VarId> assign_order;
 
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
 		Stats stats;
 #endif
 	};
@@ -351,11 +351,11 @@ namespace fcheck
 		Array<Domain> domains;
 	};
 
-}; /*namespace fcheck*/
+}; /*namespace dequan*/
 
-#ifdef FCHECK_IMPLEMENTATION
+#ifdef DEQUAN_IMPLEMENTATION
 
-namespace fcheck
+namespace dequan
 {
 	Assignment::Assignment() {}
 
@@ -363,22 +363,22 @@ namespace fcheck
 	{
 		assigned_var_count = 0;
 
-		FCHECK_Array_Clear(inst_vars);
-		FCHECK_Array_Resize(inst_vars, FCHECK_Array_Size(csp.vars));
+		DEQUAN_Array_Clear(inst_vars);
+		DEQUAN_Array_Resize(inst_vars, DEQUAN_Array_Size(csp.vars));
 
 		current_domains = csp.domains;
-		FCHECK_Array_Clear(saved_domains);
-		FCHECK_Array_Reserve(saved_domains, FCHECK_Array_Size(csp.vars));
+		DEQUAN_Array_Clear(saved_domains);
+		DEQUAN_Array_Reserve(saved_domains, DEQUAN_Array_Size(csp.vars));
 
 		// Compute order of assignements, smaller domains go first (especially constant variables)
-		FCHECK_Array_Clear(assign_order);
-		FCHECK_Array_Resize(assign_order, FCHECK_Array_Size(csp.vars));
-		for (int d_idx = 0; d_idx < FCHECK_Array_Size(assign_order); d_idx++)
+		DEQUAN_Array_Clear(assign_order);
+		DEQUAN_Array_Resize(assign_order, DEQUAN_Array_Size(csp.vars));
+		for (int d_idx = 0; d_idx < DEQUAN_Array_Size(assign_order); d_idx++)
 		{
 			assign_order[d_idx] = d_idx;
 		}
 
-		FCHECK_Array_Sort(assign_order,
+		DEQUAN_Array_Sort(assign_order,
 			[this](const VarId& a, const VarId& b) -> bool
 			{
 				int sa = current_domains[a].Size();
@@ -393,7 +393,7 @@ namespace fcheck
 
 	bool Assignment::IsComplete()
 	{
-		return assigned_var_count == FCHECK_Array_Size(inst_vars);
+		return assigned_var_count == DEQUAN_Array_Size(inst_vars);
 	}
 
 	const Domain& Assignment::GetCurrentDomain(VarId vid) const
@@ -414,7 +414,7 @@ namespace fcheck
 	{
 		inst_vars[vid].value = val;
 		assigned_var_count++;
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
 		stats.assigned_vars++;
 #endif
 	}
@@ -427,8 +427,8 @@ namespace fcheck
 
 	void Assignment::RestoreSavedDomainStep()
 	{
-		SavedDomains& domain_step = FCHECK_Array_Back(saved_domains);
-		for (int d_idx = 0; d_idx < FCHECK_Array_Size(domain_step.domains); d_idx++)
+		SavedDomains& domain_step = DEQUAN_Array_Back(saved_domains);
+		for (int d_idx = 0; d_idx < DEQUAN_Array_Size(domain_step.domains); d_idx++)
 		{
 			VarId vid = domain_step.domains[d_idx].var_id;
 			current_domains[vid].type = domain_step.domains[d_idx].type;
@@ -438,21 +438,21 @@ namespace fcheck
 
 	void Assignment::EnsureSavedDomain(VarId vid, const Domain& dom)
 	{
-		SavedDomains& domain_step = FCHECK_Array_Back(saved_domains);
-		for (int d_idx = 0; d_idx < FCHECK_Array_Size(domain_step.domains); d_idx++)
+		SavedDomains& domain_step = DEQUAN_Array_Back(saved_domains);
+		for (int d_idx = 0; d_idx < DEQUAN_Array_Size(domain_step.domains); d_idx++)
 		{
 			if (domain_step.domains[d_idx].var_id == vid)
 				return;
 		}
 		SavedDomain new_dom{ vid, dom.type, dom.values };
-		FCHECK_Array_PushBack(domain_step.domains, std::move(new_dom));
+		DEQUAN_Array_PushBack(domain_step.domains, std::move(new_dom));
 	}
 
 	VarId CSP::AddIntVar(const Domain& domain)
 	{
-		Var new_var = { (VarId)FCHECK_Array_Size(vars), {} };
-		FCHECK_Array_PushBack(vars, new_var);
-		FCHECK_Array_PushBack(domains, domain);
+		Var new_var = { (VarId)DEQUAN_Array_Size(vars), {} };
+		DEQUAN_Array_PushBack(vars, new_var);
+		DEQUAN_Array_PushBack(domains, domain);
 
 		return new_var.var_id;
 	}
@@ -476,13 +476,13 @@ namespace fcheck
 	{
 		GenericConstraint gen_con;
 		new(gen_con.get()) T(con);
-		FCHECK_Array_PushBack(constraints, std::move(gen_con));
+		DEQUAN_Array_PushBack(constraints, std::move(gen_con));
 	}
 	void CSP::FinalizeModel()
 	{
 		// Once we know that the constraints array won't change (and won't be reallocated),
 		// we can link the constraint adresses with the variables.
-		for (int c_idx = 0; c_idx < FCHECK_Array_Size(constraints); c_idx++)
+		for (int c_idx = 0; c_idx < DEQUAN_Array_Size(constraints); c_idx++)
 		{
 			constraints[c_idx]->LinkVars(vars);
 		}
@@ -496,7 +496,7 @@ namespace fcheck
 		}
 
 		// Add a new saved domain step
-		FCHECK_Array_PushBack(a.saved_domains, std::move(SavedDomains()));
+		DEQUAN_Array_PushBack(a.saved_domains, std::move(SavedDomains()));
 
 		VarId vid = a.NextUnassignedVar();
 		const Domain& dom = a.GetCurrentDomain(vid);
@@ -508,7 +508,7 @@ namespace fcheck
 			if (a.ValidateVarConstraints(var))
 			{
 				bool success = true;
-				for (int c_idx = 0; success && c_idx < FCHECK_Array_Size(var.linked_constraints); c_idx++)
+				for (int c_idx = 0; success && c_idx < DEQUAN_Array_Size(var.linked_constraints); c_idx++)
 				{
 					// Restrict domain of other variables, by removing values that would violate linked constraints
 					success &= var.linked_constraints[c_idx]->AplyArcConsistency(a, var.var_id);
@@ -540,7 +540,7 @@ namespace fcheck
 		bool found_result = false;
 		if (dom.type == DomainType::Values)
 		{
-			for (int d_idx = 0; d_idx < FCHECK_Array_Size(dom.values) && !found_result; d_idx++)
+			for (int d_idx = 0; d_idx < DEQUAN_Array_Size(dom.values) && !found_result; d_idx++)
 			{
 				int val = dom.values[d_idx];
 				found_result = LambdaStep(val);
@@ -548,7 +548,7 @@ namespace fcheck
 		}
 		else
 		{
-			for (int r_idx = 0; r_idx < FCHECK_Array_Size(dom.values); r_idx += 2)
+			for (int r_idx = 0; r_idx < DEQUAN_Array_Size(dom.values); r_idx += 2)
 			{
 				int min = dom.values[r_idx];
 				int max = dom.values[r_idx + 1];
@@ -563,15 +563,15 @@ namespace fcheck
 			return true;
 		}
 
-		FCHECK_Array_PopBack(a.saved_domains);
+		DEQUAN_Array_PopBack(a.saved_domains);
 		return false;
 	}
 
 	bool Assignment::ValidateVarConstraints(const Var& var) /*const*/
 	{
-		for (int c_idx = 0; c_idx < FCHECK_Array_Size(var.linked_constraints); c_idx++)
+		for (int c_idx = 0; c_idx < DEQUAN_Array_Size(var.linked_constraints); c_idx++)
 		{
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
 			stats.validated_constraints++;
 #endif
 			if (var.linked_constraints[c_idx]->Evaluate(inst_vars, var.var_id) == Constraint::Eval::Failed)
@@ -584,8 +584,8 @@ namespace fcheck
 	}
 	void OpConstraint::LinkVars(Array<Var>& vars)
 	{
-		FCHECK_Array_PushBack(vars[v0].linked_constraints, this);
-		FCHECK_Array_PushBack(vars[v1].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v0].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v1].linked_constraints, this);
 	}
 	Constraint::Eval OpConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
@@ -627,7 +627,7 @@ namespace fcheck
 	}
 	bool OpConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
 		a.stats.applied_arcs++;
 #endif
 		auto DoCheck = [&a](VarId v0, int v0_val, int oth_val, Op op)->bool
@@ -657,7 +657,7 @@ namespace fcheck
 				break;
 			};
 
-			if (FCHECK_Array_Size(dom.values) == 0)
+			if (DEQUAN_Array_Size(dom.values) == 0)
 			{
 				// Domain wipe out
 				return false;
@@ -690,8 +690,8 @@ namespace fcheck
 	}
 	void EqualityConstraint::LinkVars(Array<Var>& vars)
 	{
-		FCHECK_Array_PushBack(vars[v0].linked_constraints, this);
-		FCHECK_Array_PushBack(vars[v1].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v0].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v1].linked_constraints, this);
 	}
 	Constraint::Eval EqualityConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
@@ -705,7 +705,7 @@ namespace fcheck
 	}
 	bool EqualityConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
 		a.stats.applied_arcs++;
 #endif
 		auto DoCheck = [&a](VarId v0, int v0_val, int oth_val)->bool
@@ -714,7 +714,7 @@ namespace fcheck
 			a.EnsureSavedDomain(v0, dom);
 
 			dom.Intersect(oth_val);
-			if (FCHECK_Array_Size(dom.values) == 0)
+			if (DEQUAN_Array_Size(dom.values) == 0)
 			{
 				// Domain wipe out
 				return false;
@@ -739,9 +739,9 @@ namespace fcheck
 	}
 	void OrEqualityConstraint::LinkVars(Array<Var>& vars)
 	{
-		FCHECK_Array_PushBack(vars[v0].linked_constraints, this);
-		FCHECK_Array_PushBack(vars[v1].linked_constraints, this);
-		FCHECK_Array_PushBack(vars[v2].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v0].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v1].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v2].linked_constraints, this);
 	}
 	Constraint::Eval OrEqualityConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
@@ -757,7 +757,7 @@ namespace fcheck
 	}
 	bool OrEqualityConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
 		a.stats.applied_arcs++;
 #endif
 		// there are three vars, we need two var assignments to apply arc consistency
@@ -772,7 +772,7 @@ namespace fcheck
 
 			dom.Intersect(v1_val, v2_val);
 
-			if (FCHECK_Array_Size(dom.values) == 0)
+			if (DEQUAN_Array_Size(dom.values) == 0)
 			{
 				// Domain wipe out
 				return false;
@@ -783,10 +783,10 @@ namespace fcheck
 	}
 	void CombinedEqualityConstraint::LinkVars(Array<Var>& vars)
 	{
-		FCHECK_Array_PushBack(vars[v0].linked_constraints, this);
-		FCHECK_Array_PushBack(vars[v1].linked_constraints, this);
-		FCHECK_Array_PushBack(vars[v2].linked_constraints, this);
-		FCHECK_Array_PushBack(vars[v3].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v0].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v1].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v2].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v3].linked_constraints, this);
 	}
 	Constraint::Eval CombinedEqualityConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
@@ -803,7 +803,7 @@ namespace fcheck
 	}
 	bool CombinedEqualityConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
 		a.stats.applied_arcs++;
 #endif
 		// there are four vars, we need two var assignments to apply arc consistency
@@ -823,7 +823,7 @@ namespace fcheck
 			int comb_val = v1_val + v2_val - v3_val;
 			dom.Intersect(comb_val);
 
-			if (FCHECK_Array_Size(dom.values) == 0)
+			if (DEQUAN_Array_Size(dom.values) == 0)
 			{
 				// Domain wipe out
 				return false;
@@ -834,8 +834,8 @@ namespace fcheck
 	}
 	void OrRangeConstraint::LinkVars(Array<Var>& vars)
 	{
-		FCHECK_Array_PushBack(vars[v0].linked_constraints, this);
-		FCHECK_Array_PushBack(vars[v1].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v0].linked_constraints, this);
+		DEQUAN_Array_PushBack(vars[v1].linked_constraints, this);
 	}
 	Constraint::Eval OrRangeConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vid)
 	{
@@ -850,7 +850,7 @@ namespace fcheck
 	}
 	bool OrRangeConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
 		a.stats.applied_arcs++;
 #endif
 #if 0
@@ -861,7 +861,7 @@ namespace fcheck
 
 			dom.IntersectRange(min, max);
 
-			if (FCHECK_Array_Size(dom.values) == 0)
+			if (DEQUAN_Array_Size(dom.values) == 0)
 			{
 				// Domain wipe out
 				return false;
@@ -890,15 +890,15 @@ namespace fcheck
 	}
 	void AllDifferentConstraint::LinkVars(Array<Var>& vars)
 	{
-		for (int v_idx = 0; v_idx < FCHECK_Array_Size(alldiff_vars); v_idx++)
+		for (int v_idx = 0; v_idx < DEQUAN_Array_Size(alldiff_vars); v_idx++)
 		{
-			FCHECK_Array_PushBack(vars[alldiff_vars[v_idx]].linked_constraints, this);
+			DEQUAN_Array_PushBack(vars[alldiff_vars[v_idx]].linked_constraints, this);
 		}
 	}
 	Constraint::Eval AllDifferentConstraint::Evaluate(const Array<InstVar>& inst_vars, VarId last_assigned_vids)
 	{
 		int var_val = inst_vars[last_assigned_vids].value;
-		for (int v_idx = 0; v_idx < FCHECK_Array_Size(alldiff_vars); v_idx++)
+		for (int v_idx = 0; v_idx < DEQUAN_Array_Size(alldiff_vars); v_idx++)
 		{
 			if (inst_vars[alldiff_vars[v_idx]].value == var_val && alldiff_vars[v_idx] != last_assigned_vids)
 			{
@@ -910,11 +910,11 @@ namespace fcheck
 	}
 	bool AllDifferentConstraint::AplyArcConsistency(Assignment& a, VarId last_assigned_vid)
 	{
-#ifdef FCHECK_WITH_STATS
+#ifdef DEQUAN_WITH_STATS
 		a.stats.applied_arcs++;
 #endif
 		int val = a.inst_vars[last_assigned_vid].value;
-		for (int v_idx = 0; v_idx < FCHECK_Array_Size(alldiff_vars); v_idx++)
+		for (int v_idx = 0; v_idx < DEQUAN_Array_Size(alldiff_vars); v_idx++)
 		{
 			int vid = alldiff_vars[v_idx];
 			if (a.inst_vars[vid].value == InstVar::UNASSIGNED)
@@ -923,7 +923,7 @@ namespace fcheck
 				a.EnsureSavedDomain(vid, dom);
 				dom.Exclude(val);
 
-				if (FCHECK_Array_Size(dom.values) == 0)
+				if (DEQUAN_Array_Size(dom.values) == 0)
 				{
 					// Domain wipe out
 					return false;
@@ -938,12 +938,12 @@ namespace fcheck
 	{
 		if (type == DomainType::Values)
 		{
-			return (int)FCHECK_Array_Size(values);
+			return (int)DEQUAN_Array_Size(values);
 		}
 		else
 		{
 			int size = 0;
-			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); r_idx += 2)
+			for (int r_idx = 0; r_idx < DEQUAN_Array_Size(values); r_idx += 2)
 			{
 				size += values[r_idx + 1] - values[r_idx];
 			}
@@ -954,25 +954,25 @@ namespace fcheck
 	{
 		if (type == DomainType::Values)
 		{
-			for (int d_idx = 0; d_idx < FCHECK_Array_Size(values); d_idx++)
+			for (int d_idx = 0; d_idx < DEQUAN_Array_Size(values); d_idx++)
 			{
 				if (val == values[d_idx])
 				{
-					FCHECK_Array_Clear(values);
-					FCHECK_Array_PushBack(values, val);
+					DEQUAN_Array_Clear(values);
+					DEQUAN_Array_PushBack(values, val);
 					break;
 				}
 			}
 		}
 		else
 		{
-			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); r_idx += 2)
+			for (int r_idx = 0; r_idx < DEQUAN_Array_Size(values); r_idx += 2)
 			{
 				if (values[r_idx] <= val && val < values[r_idx + 1])
 				{
 					type = DomainType::Values;
-					FCHECK_Array_Clear(values);
-					FCHECK_Array_PushBack(values, val);
+					DEQUAN_Array_Clear(values);
+					DEQUAN_Array_PushBack(values, val);
 					break;
 				}
 			}
@@ -982,18 +982,18 @@ namespace fcheck
 	{
 		if (type == DomainType::Values)
 		{
-			for (int d_idx = 0; d_idx < FCHECK_Array_Size(values); d_idx++)
+			for (int d_idx = 0; d_idx < DEQUAN_Array_Size(values); d_idx++)
 			{
 				if (val == values[d_idx])
 				{
-					FCHECK_Array_Erase(values, d_idx, d_idx + 1);
+					DEQUAN_Array_Erase(values, d_idx, d_idx + 1);
 					break;
 				}
 			}
 		}
 		else
 		{
-			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); r_idx += 2)
+			for (int r_idx = 0; r_idx < DEQUAN_Array_Size(values); r_idx += 2)
 			{
 				int min = values[r_idx];
 				int max = values[r_idx + 1];
@@ -1001,7 +1001,7 @@ namespace fcheck
 				{
 					if (max - min <= 1)
 					{
-						FCHECK_Array_Erase(values, r_idx, r_idx + 2);
+						DEQUAN_Array_Erase(values, r_idx, r_idx + 2);
 					}
 					else
 					{
@@ -1016,8 +1016,8 @@ namespace fcheck
 						else
 						{
 							values[r_idx + 1] = val;
-							FCHECK_Array_Insert(values, (r_idx + 2), max);
-							FCHECK_Array_Insert(values, (r_idx + 2), val + 1);
+							DEQUAN_Array_Insert(values, (r_idx + 2), max);
+							DEQUAN_Array_Insert(values, (r_idx + 2), val + 1);
 						}
 					}
 					break;
@@ -1030,7 +1030,7 @@ namespace fcheck
 		int write_idx = 0;
 		if (type == DomainType::Values)
 		{
-			for (int d_idx = 0; d_idx < FCHECK_Array_Size(values); d_idx++)
+			for (int d_idx = 0; d_idx < DEQUAN_Array_Size(values); d_idx++)
 			{
 				int val = values[d_idx];
 				if (val0 == val)
@@ -1046,7 +1046,7 @@ namespace fcheck
 		else
 		{
 			type = DomainType::Values;
-			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); r_idx += 2)
+			for (int r_idx = 0; r_idx < DEQUAN_Array_Size(values); r_idx += 2)
 			{
 				int min = values[r_idx];
 				int max = values[r_idx + 1];
@@ -1060,14 +1060,14 @@ namespace fcheck
 				}
 			}
 		}
-		FCHECK_Array_Erase(values, write_idx, FCHECK_Array_Size(values));
+		DEQUAN_Array_Erase(values, write_idx, DEQUAN_Array_Size(values));
 	}
 	void Domain::IntersectRange(int rmin, int rmax)
 	{
 		if (type == DomainType::Values)
 		{
 			int write_idx = 0;
-			for (int d_idx = 0; d_idx < FCHECK_Array_Size(values); d_idx++)
+			for (int d_idx = 0; d_idx < DEQUAN_Array_Size(values); d_idx++)
 			{
 				int val = values[d_idx];
 				if (rmin <= val && val < rmax)
@@ -1075,11 +1075,11 @@ namespace fcheck
 					values[write_idx++] = val;
 				}
 			}
-			FCHECK_Array_Erase(values, write_idx, FCHECK_Array_Size(values));
+			DEQUAN_Array_Erase(values, write_idx, DEQUAN_Array_Size(values));
 		}
 		else
 		{
-			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); )
+			for (int r_idx = 0; r_idx < DEQUAN_Array_Size(values); )
 			{
 				int min = values[r_idx];
 				int max = values[r_idx + 1];
@@ -1093,7 +1093,7 @@ namespace fcheck
 				}
 				else
 				{
-					FCHECK_Array_Erase(values, r_idx, r_idx + 2);
+					DEQUAN_Array_Erase(values, r_idx, r_idx + 2);
 				}
 			}
 		}
@@ -1103,7 +1103,7 @@ namespace fcheck
 		if (type == DomainType::Values)
 		{
 			int write_idx = 0;
-			for (int d_idx = 0; d_idx < FCHECK_Array_Size(values); d_idx++)
+			for (int d_idx = 0; d_idx < DEQUAN_Array_Size(values); d_idx++)
 			{
 				int val = values[d_idx];
 				if (val < rmax)
@@ -1111,11 +1111,11 @@ namespace fcheck
 					values[write_idx++] = val;
 				}
 			}
-			FCHECK_Array_Erase(values, write_idx, FCHECK_Array_Size(values));
+			DEQUAN_Array_Erase(values, write_idx, DEQUAN_Array_Size(values));
 		}
 		else
 		{
-			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); )
+			for (int r_idx = 0; r_idx < DEQUAN_Array_Size(values); )
 			{
 				int min = values[r_idx];
 				int max = values[r_idx + 1];
@@ -1127,7 +1127,7 @@ namespace fcheck
 				}
 				else
 				{
-					FCHECK_Array_Erase(values, r_idx, r_idx + 2);
+					DEQUAN_Array_Erase(values, r_idx, r_idx + 2);
 				}
 			}
 		}
@@ -1137,7 +1137,7 @@ namespace fcheck
 		if (type == DomainType::Values)
 		{
 			int write_idx = 0;
-			for (int d_idx = 0; d_idx < FCHECK_Array_Size(values); d_idx++)
+			for (int d_idx = 0; d_idx < DEQUAN_Array_Size(values); d_idx++)
 			{
 				int val = values[d_idx];
 				if (val >= rmin)
@@ -1145,11 +1145,11 @@ namespace fcheck
 					values[write_idx++] = val;
 				}
 			}
-			FCHECK_Array_Erase(values, write_idx, FCHECK_Array_Size(values));
+			DEQUAN_Array_Erase(values, write_idx, DEQUAN_Array_Size(values));
 		}
 		else
 		{
-			for (int r_idx = 0; r_idx < FCHECK_Array_Size(values); )
+			for (int r_idx = 0; r_idx < DEQUAN_Array_Size(values); )
 			{
 				int min = values[r_idx];
 				int max = values[r_idx + 1];
@@ -1161,12 +1161,12 @@ namespace fcheck
 				}
 				else
 				{
-					FCHECK_Array_Erase(values, r_idx, r_idx + 2);
+					DEQUAN_Array_Erase(values, r_idx, r_idx + 2);
 				}
 			}
 		}
 	}
 
-}; /*namespace fcheck*/
+}; /*namespace dequan*/
 
-#endif // FCHECK_IMPLEMENTATION
+#endif // DEQUAN_IMPLEMENTATION
