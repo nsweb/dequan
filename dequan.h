@@ -30,16 +30,16 @@
 	#include <vector>
 	#include <algorithm>
 
-	#define DEQUAN_Array_Size(a)				a.size()
-	#define DEQUAN_Array_PushBack(a, val)		a.push_back(val)
-	#define DEQUAN_Array_Clear(a)				a.clear()
-	#define DEQUAN_Array_Resize(a, s)			a.resize(s)
-	#define DEQUAN_Array_Reserve(a, s)			a.reserve(s)
-	#define DEQUAN_Array_Back(a)				a.back()
-	#define DEQUAN_Array_PopBack(a)				a.pop_back()
-	#define DEQUAN_Array_Insert(a, idx, val)	a.insert(a.begin() + idx, val)
-	#define DEQUAN_Array_Erase(a, first, last)	a.erase(a.begin() + (first), a.begin() + (last));
-	#define DEQUAN_Array_Sort(a, lambda)		std::sort(a.begin(), a.end(), lambda)
+	#define DEQUAN_Array_Size(a)                a.size()
+	#define DEQUAN_Array_PushBack(a, val)       a.push_back(val)
+	#define DEQUAN_Array_Clear(a)               a.clear()
+	#define DEQUAN_Array_Resize(a, s)           a.resize(s)
+	#define DEQUAN_Array_Reserve(a, s)          a.reserve(s)
+	#define DEQUAN_Array_Back(a)                a.back()
+	#define DEQUAN_Array_PopBack(a)             a.pop_back()
+	#define DEQUAN_Array_Insert(a, idx, val)    a.insert(a.begin() + idx, val)
+	#define DEQUAN_Array_Erase(a, first, last)  a.erase(a.begin() + (first), a.begin() + (last));
+	#define DEQUAN_Array_Sort(a, lambda)        std::sort(a.begin(), a.end(), lambda)
 #endif
 
 /**/
@@ -76,6 +76,7 @@ namespace dequan
 	struct Domain
 	{
 		Domain() = default;
+		Domain(DomainType t, const Array<int>& v) : type(t), values(v) {}
 		int Size() const;
 		/** Remove any value different from 'val' in the domain */
 		void Intersect(int val);
@@ -97,6 +98,7 @@ namespace dequan
 	struct SavedDomain
 	{
 		SavedDomain() = default;
+		SavedDomain(VarId vid, DomainType t, const Array<int>& v) : var_id(vid), type(t), values(v) {}
 
 		VarId var_id;
 		DomainType type = DomainType::Values;
@@ -157,8 +159,8 @@ namespace dequan
 #else
 		struct MaxConstraint
 		{
-			virtual ~MaxConstraint() = default;
-			Array<int> v;
+			virtual ~MaxConstraint() {};
+			union { Array<int> a; int v[4]; };
 		};
 		static constexpr int MAX_CONSTRAINT_SIZE = sizeof(MaxConstraint);
 #endif
@@ -269,6 +271,7 @@ namespace dequan
 	struct Var
 	{
 		Var() = default;
+		Var(VarId vid, const Array<Constraint*>& lk) : var_id(vid), linked_constraints(lk) {}
 
 		static const VarId INVALID = -1;
 
@@ -682,6 +685,7 @@ namespace dequan
 			case Op::Sup:		op_rev = Op::Inf; break;
 			case Op::InfEqual:	op_rev = Op::SupEqual; break;
 			case Op::Inf:		op_rev = Op::Sup; break;
+			default: break;
 			};
 			return DoCheck(v1, v1_val, v0_val - offset, op_rev);
 		}

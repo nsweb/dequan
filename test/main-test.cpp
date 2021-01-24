@@ -26,7 +26,7 @@
 // https://en.wikipedia.org/wiki/Eight_queens_puzzle
 bool NQueensTest(const int num_queen)
 {
-    std::cout << "\n----------------------------\n";
+    std::cout << "\n\n----------------------------\n";
     std::cout << num_queen << "-queens test : ";
 
     dequan::CSP csp;
@@ -104,7 +104,7 @@ bool SudokuTest()
         _, _, 5,  _, 1, _,  3, _, _
     };
 
-    std::cout << "\n----------------------------\n";
+    std::cout << "\n\n----------------------------\n";
     std::cout << num_row << "-sudoku test : ";
 
     dequan::CSP csp;
@@ -186,7 +186,7 @@ bool SudokuTest()
 
 bool OpInequalityTest()
 {
-    std::cout << "\n----------------------------\n";
+    std::cout << "\n\n----------------------------\n";
     std::cout << "OpInequality test : ";
 
     dequan::CSP csp;

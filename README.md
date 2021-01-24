@@ -2,7 +2,7 @@
 Minimal but efficient C++11 header-only library for solving Constraint Satisfaction Problems.
 Simple and extensible framework for modelling constraints.
 
-##FAQ
+## FAQ
 
 #### What's the license?
 License is MIT.
